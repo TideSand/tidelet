@@ -1,0 +1,10 @@
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+.idea/
+.vscode/
+
+tidebox/
+output/
