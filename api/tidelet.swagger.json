@@ -1,0 +1,1091 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "tidelet/v1alpha1/tidelet.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "SandboxService",
+      "description": "SandboxService manages the lifecycle of sandboxes."
+    },
+    {
+      "name": "NodeService",
+      "description": "NodeService reports on the node as a whole."
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/tidelet.v1alpha1.SandboxService/Attach": {
+      "post": {
+        "summary": "Attach connects to the main process's standard streams. The first\nmessage must be AttachStart. Output is streamed until the process\nexits or the client disconnects; the stream ends with Exit if the\nprocess exited.",
+        "operationId": "SandboxService_Attach",
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/definitions/v1alpha1AttachResponse"
+                },
+                "error": {
+                  "$ref": "#/definitions/rpcStatus"
+                }
+              },
+              "title": "Stream result of v1alpha1AttachResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": " (streaming inputs)",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1alpha1AttachRequest"
+            }
+          }
+        ],
+        "tags": [
+          "SandboxService"
+        ]
+      }
+    },
+    "/tidelet.v1alpha1.SandboxService/Exec": {
+      "post": {
+        "summary": "Exec runs a command inside a running sandbox. The first message must\nbe ExecStart. Stdin, resize and close-stdin messages may follow. The\nserver streams stdout, stderr and finally an Exit message.",
+        "operationId": "SandboxService_Exec",
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/definitions/v1alpha1ExecResponse"
+                },
+                "error": {
+                  "$ref": "#/definitions/rpcStatus"
+                }
+              },
+              "title": "Stream result of v1alpha1ExecResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": " (streaming inputs)",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1alpha1ExecRequest"
+            }
+          }
+        ],
+        "tags": [
+          "SandboxService"
+        ]
+      }
+    },
+    "/v1alpha1/events": {
+      "get": {
+        "summary": "Watch streams sandbox lifecycle events.",
+        "operationId": "SandboxService_Watch",
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/definitions/v1alpha1WatchResponse"
+                },
+                "error": {
+                  "$ref": "#/definitions/rpcStatus"
+                }
+              },
+              "title": "Stream result of v1alpha1WatchResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "SandboxService"
+        ]
+      }
+    },
+    "/v1alpha1/node": {
+      "get": {
+        "summary": "GetNode returns capacity as seen through the active policy.",
+        "operationId": "NodeService_GetNode",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1alpha1GetNodeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "NodeService"
+        ]
+      }
+    },
+    "/v1alpha1/sandboxes": {
+      "get": {
+        "operationId": "SandboxService_ListSandboxes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1alpha1ListSandboxesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "SandboxService"
+        ]
+      },
+      "post": {
+        "summary": "CreateSandbox submits a sandbox to the policy. The policy may run it\n(the sandbox is created in the runtime, not started, so a client can\nattach before the first byte of output), queue it for later, or\nreject it. Use StartSandbox to run it.",
+        "operationId": "SandboxService_CreateSandbox",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1alpha1CreateSandboxResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1alpha1CreateSandboxRequest"
+            }
+          }
+        ],
+        "tags": [
+          "SandboxService"
+        ]
+      }
+    },
+    "/v1alpha1/sandboxes/{sandbox}": {
+      "get": {
+        "operationId": "SandboxService_GetSandbox",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1alpha1GetSandboxResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sandbox",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "SandboxService"
+        ]
+      },
+      "delete": {
+        "summary": "DeleteSandbox removes a sandbox. A live sandbox is rejected unless\nforce is set.",
+        "operationId": "SandboxService_DeleteSandbox",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1alpha1DeleteSandboxResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sandbox",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "SandboxService"
+        ]
+      }
+    },
+    "/v1alpha1/sandboxes/{sandbox}/logs": {
+      "get": {
+        "summary": "Logs streams the sandbox's recorded output, optionally following it\nuntil the sandbox exits.",
+        "operationId": "SandboxService_Logs",
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/definitions/v1alpha1LogsResponse"
+                },
+                "error": {
+                  "$ref": "#/definitions/rpcStatus"
+                }
+              },
+              "title": "Stream result of v1alpha1LogsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sandbox",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "follow",
+            "description": "Keep streaming until the sandbox exits.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "tailLines",
+            "description": "Only the last N lines. Zero means everything.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "since",
+            "description": "Only entries at or after this time.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          }
+        ],
+        "tags": [
+          "SandboxService"
+        ]
+      }
+    },
+    "/v1alpha1/sandboxes/{sandbox}/stats": {
+      "get": {
+        "summary": "GetStats samples resource usage of a running sandbox.",
+        "operationId": "SandboxService_GetStats",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1alpha1GetStatsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sandbox",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "SandboxService"
+        ]
+      }
+    },
+    "/v1alpha1/sandboxes/{sandbox}:start": {
+      "post": {
+        "summary": "StartSandbox starts a created sandbox. On a queued sandbox it records\nthat a start is wanted, so the sandbox starts as soon as the policy\ndispatches it.",
+        "operationId": "SandboxService_StartSandbox",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1alpha1StartSandboxResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sandbox",
+            "description": "Sandbox ID, name, or unique ID prefix. All \"sandbox\" fields below\naccept the same forms.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "SandboxService"
+        ]
+      }
+    },
+    "/v1alpha1/sandboxes/{sandbox}:stop": {
+      "post": {
+        "summary": "StopSandbox sends SIGTERM and, after the grace period, SIGKILL. It\nreturns once the process has exited.",
+        "operationId": "SandboxService_StopSandbox",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1alpha1StopSandboxResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sandbox",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SandboxServiceStopSandboxBody"
+            }
+          }
+        ],
+        "tags": [
+          "SandboxService"
+        ]
+      }
+    },
+    "/v1alpha1/version": {
+      "get": {
+        "operationId": "NodeService_GetVersion",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1alpha1GetVersionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "NodeService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "SandboxServiceStopSandboxBody": {
+      "type": "object",
+      "properties": {
+        "timeoutSeconds": {
+          "type": "string",
+          "format": "int64",
+          "description": "Grace period in seconds before SIGKILL. Zero uses the daemon default."
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1alpha1AttachRequest": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "$ref": "#/definitions/v1alpha1AttachStart"
+        },
+        "stdin": {
+          "type": "string",
+          "format": "byte"
+        },
+        "resize": {
+          "$ref": "#/definitions/v1alpha1TerminalSize"
+        },
+        "closeStdin": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1alpha1AttachResponse": {
+      "type": "object",
+      "properties": {
+        "stdout": {
+          "type": "string",
+          "format": "byte"
+        },
+        "stderr": {
+          "type": "string",
+          "format": "byte"
+        },
+        "exit": {
+          "$ref": "#/definitions/v1alpha1Exit"
+        },
+        "attached": {
+          "$ref": "#/definitions/v1alpha1Attached",
+          "description": "Sent once output forwarding is in place, so a client can start the\nsandbox without missing its first bytes."
+        }
+      }
+    },
+    "v1alpha1AttachStart": {
+      "type": "object",
+      "properties": {
+        "sandbox": {
+          "type": "string"
+        },
+        "stdin": {
+          "type": "boolean",
+          "description": "Forward stdin messages to the process. Requires the sandbox to have\nbeen created with stdin set."
+        },
+        "terminalSize": {
+          "$ref": "#/definitions/v1alpha1TerminalSize"
+        }
+      }
+    },
+    "v1alpha1Attached": {
+      "type": "object"
+    },
+    "v1alpha1CreateSandboxRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Optional unique name."
+        },
+        "spec": {
+          "$ref": "#/definitions/v1alpha1SandboxSpec"
+        }
+      }
+    },
+    "v1alpha1CreateSandboxResponse": {
+      "type": "object",
+      "properties": {
+        "sandbox": {
+          "$ref": "#/definitions/v1alpha1Sandbox"
+        }
+      }
+    },
+    "v1alpha1DeleteSandboxResponse": {
+      "type": "object"
+    },
+    "v1alpha1EventType": {
+      "type": "string",
+      "enum": [
+        "EVENT_TYPE_UNSPECIFIED",
+        "EVENT_TYPE_QUEUED",
+        "EVENT_TYPE_CREATED",
+        "EVENT_TYPE_STARTED",
+        "EVENT_TYPE_FROZEN",
+        "EVENT_TYPE_THAWED",
+        "EVENT_TYPE_EXITED",
+        "EVENT_TYPE_FAILED",
+        "EVENT_TYPE_DELETED"
+      ],
+      "default": "EVENT_TYPE_UNSPECIFIED"
+    },
+    "v1alpha1ExecRequest": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "$ref": "#/definitions/v1alpha1ExecStart"
+        },
+        "stdin": {
+          "type": "string",
+          "format": "byte"
+        },
+        "resize": {
+          "$ref": "#/definitions/v1alpha1TerminalSize"
+        },
+        "closeStdin": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1alpha1ExecResponse": {
+      "type": "object",
+      "properties": {
+        "stdout": {
+          "type": "string",
+          "format": "byte"
+        },
+        "stderr": {
+          "type": "string",
+          "format": "byte"
+        },
+        "exit": {
+          "$ref": "#/definitions/v1alpha1Exit"
+        }
+      }
+    },
+    "v1alpha1ExecStart": {
+      "type": "object",
+      "properties": {
+        "sandbox": {
+          "type": "string"
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "workingDir": {
+          "type": "string"
+        },
+        "tty": {
+          "type": "boolean",
+          "description": "Allocate a pseudo-terminal. Output then arrives only on stdout."
+        },
+        "stdin": {
+          "type": "boolean",
+          "description": "Keep stdin open until a close_stdin message arrives."
+        },
+        "terminalSize": {
+          "$ref": "#/definitions/v1alpha1TerminalSize"
+        }
+      }
+    },
+    "v1alpha1Exit": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1alpha1GetNodeResponse": {
+      "type": "object",
+      "properties": {
+        "node": {
+          "$ref": "#/definitions/v1alpha1NodeStatus"
+        }
+      }
+    },
+    "v1alpha1GetSandboxResponse": {
+      "type": "object",
+      "properties": {
+        "sandbox": {
+          "$ref": "#/definitions/v1alpha1Sandbox"
+        }
+      }
+    },
+    "v1alpha1GetStatsResponse": {
+      "type": "object",
+      "properties": {
+        "stats": {
+          "$ref": "#/definitions/v1alpha1Stats"
+        }
+      }
+    },
+    "v1alpha1GetVersionResponse": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "v1alpha1ListSandboxesResponse": {
+      "type": "object",
+      "properties": {
+        "sandboxes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1alpha1Sandbox"
+          }
+        }
+      }
+    },
+    "v1alpha1LogStream": {
+      "type": "string",
+      "enum": [
+        "LOG_STREAM_UNSPECIFIED",
+        "LOG_STREAM_STDOUT",
+        "LOG_STREAM_STDERR"
+      ],
+      "default": "LOG_STREAM_UNSPECIFIED"
+    },
+    "v1alpha1LogsResponse": {
+      "type": "object",
+      "properties": {
+        "stream": {
+          "$ref": "#/definitions/v1alpha1LogStream"
+        },
+        "data": {
+          "type": "string",
+          "format": "byte"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1alpha1Mount": {
+      "type": "object",
+      "properties": {
+        "hostPath": {
+          "type": "string"
+        },
+        "containerPath": {
+          "type": "string"
+        },
+        "readOnly": {
+          "type": "boolean"
+        }
+      },
+      "description": "Mount is a bind mount from the host into the sandbox."
+    },
+    "v1alpha1NetworkMode": {
+      "type": "string",
+      "enum": [
+        "NETWORK_MODE_UNSPECIFIED",
+        "NETWORK_MODE_NONE",
+        "NETWORK_MODE_HOST",
+        "NETWORK_MODE_BRIDGE",
+        "NETWORK_MODE_JOIN"
+      ],
+      "default": "NETWORK_MODE_UNSPECIFIED",
+      "description": " - NETWORK_MODE_NONE: A private network namespace with only a loopback interface.\n - NETWORK_MODE_HOST: The host network namespace.\n - NETWORK_MODE_BRIDGE: A private network namespace attached to the node's CNI bridge, with\nan IP address and outbound NAT, like Docker's default network.\n - NETWORK_MODE_JOIN: Join the network namespace named by network_namespace, typically one\ncreated by another sandbox with NETWORK_MODE_BRIDGE. This is how the\ncontainers of a Pod share one network identity."
+    },
+    "v1alpha1NetworkStatus": {
+      "type": "object",
+      "properties": {
+        "namespacePath": {
+          "type": "string",
+          "description": "Path of the sandbox's network namespace on the host, when it owns one."
+        },
+        "ipAddresses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "IP addresses assigned by CNI (e.g. 10.88.0.5)."
+        }
+      },
+      "description": "NetworkStatus describes a sandbox's network attachment."
+    },
+    "v1alpha1NodeStatus": {
+      "type": "object",
+      "properties": {
+        "policy": {
+          "type": "string"
+        },
+        "runtime": {
+          "type": "string"
+        },
+        "capacity": {
+          "$ref": "#/definitions/v1alpha1ResourceList",
+          "description": "Physical capacity."
+        },
+        "allocatable": {
+          "$ref": "#/definitions/v1alpha1ResourceList",
+          "description": "What the policy advertises as schedulable."
+        },
+        "allocated": {
+          "$ref": "#/definitions/v1alpha1ResourceList",
+          "description": "Sum of requests of sandboxes holding an allocation."
+        },
+        "sandboxCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "queuedCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Sandboxes accepted but not yet created."
+        }
+      }
+    },
+    "v1alpha1Phase": {
+      "type": "string",
+      "enum": [
+        "PHASE_UNSPECIFIED",
+        "PHASE_PENDING",
+        "PHASE_QUEUED",
+        "PHASE_CREATED",
+        "PHASE_RUNNING",
+        "PHASE_FROZEN",
+        "PHASE_EXITED",
+        "PHASE_FAILED"
+      ],
+      "default": "PHASE_UNSPECIFIED",
+      "description": " - PHASE_PENDING: Admission in progress or runtime creation in progress.\n - PHASE_QUEUED: Accepted by the policy but not yet created. Holds no allocation.\n - PHASE_CREATED: Created in the runtime but not started. Holds its allocation.\n - PHASE_FROZEN: Frozen by the policy via the cgroup freezer. Holds its allocation.\n - PHASE_FAILED: Could not be created or started, was lost by the runtime, or was\ngiven up on by the policy."
+    },
+    "v1alpha1ResourceList": {
+      "type": "object",
+      "properties": {
+        "cpuMillicores": {
+          "type": "string",
+          "format": "int64"
+        },
+        "memoryBytes": {
+          "type": "string",
+          "format": "int64"
+        }
+      },
+      "description": "ResourceList is a CPU and memory quantity. Zero means unset."
+    },
+    "v1alpha1Resources": {
+      "type": "object",
+      "properties": {
+        "requests": {
+          "$ref": "#/definitions/v1alpha1ResourceList"
+        },
+        "limits": {
+          "$ref": "#/definitions/v1alpha1ResourceList"
+        }
+      },
+      "description": "Resources follows Kubernetes semantics: requests are what admission\naccounts, limits are what cgroups enforce. The active policy decides\nhow they relate."
+    },
+    "v1alpha1RuntimeClass": {
+      "type": "string",
+      "enum": [
+        "RUNTIME_CLASS_UNSPECIFIED",
+        "RUNTIME_CLASS_CONTAINER",
+        "RUNTIME_CLASS_MICROVM"
+      ],
+      "default": "RUNTIME_CLASS_UNSPECIFIED"
+    },
+    "v1alpha1Sandbox": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "spec": {
+          "$ref": "#/definitions/v1alpha1SandboxSpec"
+        },
+        "status": {
+          "$ref": "#/definitions/v1alpha1SandboxStatus"
+        }
+      }
+    },
+    "v1alpha1SandboxSpec": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string",
+          "description": "OCI image reference including the registry host."
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Command replaces the image entrypoint; args replaces the image cmd."
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "workingDir": {
+          "type": "string"
+        },
+        "resources": {
+          "$ref": "#/definitions/v1alpha1Resources"
+        },
+        "network": {
+          "$ref": "#/definitions/v1alpha1NetworkMode"
+        },
+        "runtime": {
+          "$ref": "#/definitions/v1alpha1RuntimeClass"
+        },
+        "mounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1alpha1Mount"
+          }
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "stdin": {
+          "type": "boolean",
+          "description": "Keep stdin open so that Attach can write to it."
+        },
+        "tty": {
+          "type": "boolean",
+          "description": "Allocate a pseudo-terminal for the main process."
+        },
+        "priority": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Priority is advisory information for the policy: higher values are\nmore important when a policy orders its queue or picks what to\nsqueeze. The strict policy ignores it."
+        },
+        "networkNamespace": {
+          "type": "string",
+          "description": "Path of the network namespace to join when network is\nNETWORK_MODE_JOIN (see SandboxStatus.network.namespace_path)."
+        },
+        "hostname": {
+          "type": "string",
+          "description": "Hostname inside the sandbox. Defaults to the sandbox name or ID."
+        }
+      }
+    },
+    "v1alpha1SandboxStatus": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "$ref": "#/definitions/v1alpha1Phase"
+        },
+        "message": {
+          "type": "string"
+        },
+        "exitCode": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finishedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "allocated": {
+          "$ref": "#/definitions/v1alpha1Resources",
+          "description": "Effective resources after the policy rewrote the spec: what admission\naccounted and what cgroups enforce."
+        },
+        "policy": {
+          "type": "string",
+          "description": "Name of the policy that admitted the sandbox."
+        },
+        "network": {
+          "$ref": "#/definitions/v1alpha1NetworkStatus"
+        }
+      }
+    },
+    "v1alpha1StartSandboxResponse": {
+      "type": "object",
+      "properties": {
+        "sandbox": {
+          "$ref": "#/definitions/v1alpha1Sandbox"
+        }
+      }
+    },
+    "v1alpha1Stats": {
+      "type": "object",
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cpuUsageNanos": {
+          "type": "string",
+          "format": "uint64",
+          "description": "Cumulative CPU time consumed."
+        },
+        "cpuThrottledNanos": {
+          "type": "string",
+          "format": "uint64",
+          "description": "Cumulative time spent throttled by the CPU quota."
+        },
+        "memoryUsageBytes": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "memoryLimitBytes": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "memoryWorkingSetBytes": {
+          "type": "string",
+          "format": "uint64",
+          "description": "Usage minus inactive file cache, as the kubelet defines it."
+        },
+        "pids": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "memorySwapUsageBytes": {
+          "type": "string",
+          "format": "uint64",
+          "description": "Swap the sandbox's cgroup holds; 0 when swap is disabled for it."
+        }
+      }
+    },
+    "v1alpha1StopSandboxResponse": {
+      "type": "object",
+      "properties": {
+        "sandbox": {
+          "$ref": "#/definitions/v1alpha1Sandbox"
+        }
+      }
+    },
+    "v1alpha1TerminalSize": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "height": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "v1alpha1WatchResponse": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/v1alpha1EventType"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sandbox": {
+          "$ref": "#/definitions/v1alpha1Sandbox"
+        }
+      }
+    }
+  }
+}

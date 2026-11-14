@@ -1,0 +1,414 @@
+// Tidelet gRPC API.
+//
+// gRPC is the primary interface to tideletd; the CLI and the Go client are
+// built on it. A REST/JSON gateway is
+// generated from the google.api.http annotations below for the unary and
+// server-streaming methods. Resource quantities are typed (millicores and
+// bytes); the CLI accepts Kubernetes quantity syntax and converts.
+syntax = "proto3";
+
+package tidelet.v1alpha1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/TideSand/tidelet/api/tidelet/v1alpha1;v1alpha1";
+
+// SandboxService manages the lifecycle of sandboxes.
+service SandboxService {
+  // CreateSandbox submits a sandbox to the policy. The policy may run it
+  // (the sandbox is created in the runtime, not started, so a client can
+  // attach before the first byte of output), queue it for later, or
+  // reject it. Use StartSandbox to run it.
+  rpc CreateSandbox(CreateSandboxRequest) returns (CreateSandboxResponse) {
+    option (google.api.http) = {
+      post: "/v1alpha1/sandboxes"
+      body: "*"
+    };
+  }
+  // StartSandbox starts a created sandbox. On a queued sandbox it records
+  // that a start is wanted, so the sandbox starts as soon as the policy
+  // dispatches it.
+  rpc StartSandbox(StartSandboxRequest) returns (StartSandboxResponse) {
+    option (google.api.http) = {post: "/v1alpha1/sandboxes/{sandbox}:start"};
+  }
+  rpc GetSandbox(GetSandboxRequest) returns (GetSandboxResponse) {
+    option (google.api.http) = {get: "/v1alpha1/sandboxes/{sandbox}"};
+  }
+  rpc ListSandboxes(ListSandboxesRequest) returns (ListSandboxesResponse) {
+    option (google.api.http) = {get: "/v1alpha1/sandboxes"};
+  }
+  // StopSandbox sends SIGTERM and, after the grace period, SIGKILL. It
+  // returns once the process has exited.
+  rpc StopSandbox(StopSandboxRequest) returns (StopSandboxResponse) {
+    option (google.api.http) = {
+      post: "/v1alpha1/sandboxes/{sandbox}:stop"
+      body: "*"
+    };
+  }
+  // DeleteSandbox removes a sandbox. A live sandbox is rejected unless
+  // force is set.
+  rpc DeleteSandbox(DeleteSandboxRequest) returns (DeleteSandboxResponse) {
+    option (google.api.http) = {delete: "/v1alpha1/sandboxes/{sandbox}"};
+  }
+  // Exec runs a command inside a running sandbox. The first message must
+  // be ExecStart. Stdin, resize and close-stdin messages may follow. The
+  // server streams stdout, stderr and finally an Exit message.
+  rpc Exec(stream ExecRequest) returns (stream ExecResponse);
+  // Attach connects to the main process's standard streams. The first
+  // message must be AttachStart. Output is streamed until the process
+  // exits or the client disconnects; the stream ends with Exit if the
+  // process exited.
+  rpc Attach(stream AttachRequest) returns (stream AttachResponse);
+  // Logs streams the sandbox's recorded output, optionally following it
+  // until the sandbox exits.
+  rpc Logs(LogsRequest) returns (stream LogsResponse) {
+    option (google.api.http) = {get: "/v1alpha1/sandboxes/{sandbox}/logs"};
+  }
+  // GetStats samples resource usage of a running sandbox.
+  rpc GetStats(GetStatsRequest) returns (GetStatsResponse) {
+    option (google.api.http) = {get: "/v1alpha1/sandboxes/{sandbox}/stats"};
+  }
+  // Watch streams sandbox lifecycle events.
+  rpc Watch(WatchRequest) returns (stream WatchResponse) {
+    option (google.api.http) = {get: "/v1alpha1/events"};
+  }
+}
+
+// NodeService reports on the node as a whole.
+service NodeService {
+  // GetNode returns capacity as seen through the active policy.
+  rpc GetNode(GetNodeRequest) returns (GetNodeResponse) {
+    option (google.api.http) = {get: "/v1alpha1/node"};
+  }
+  rpc GetVersion(GetVersionRequest) returns (GetVersionResponse) {
+    option (google.api.http) = {get: "/v1alpha1/version"};
+  }
+}
+
+// ResourceList is a CPU and memory quantity. Zero means unset.
+message ResourceList {
+  int64 cpu_millicores = 1;
+  int64 memory_bytes = 2;
+}
+
+// Resources follows Kubernetes semantics: requests are what admission
+// accounts, limits are what cgroups enforce. The active policy decides
+// how they relate.
+message Resources {
+  ResourceList requests = 1;
+  ResourceList limits = 2;
+}
+
+enum NetworkMode {
+  NETWORK_MODE_UNSPECIFIED = 0;
+  // A private network namespace with only a loopback interface.
+  NETWORK_MODE_NONE = 1;
+  // The host network namespace.
+  NETWORK_MODE_HOST = 2;
+  // A private network namespace attached to the node's CNI bridge, with
+  // an IP address and outbound NAT, like Docker's default network.
+  NETWORK_MODE_BRIDGE = 3;
+  // Join the network namespace named by network_namespace, typically one
+  // created by another sandbox with NETWORK_MODE_BRIDGE. This is how the
+  // containers of a Pod share one network identity.
+  NETWORK_MODE_JOIN = 4;
+}
+
+enum RuntimeClass {
+  RUNTIME_CLASS_UNSPECIFIED = 0;
+  RUNTIME_CLASS_CONTAINER = 1;
+  RUNTIME_CLASS_MICROVM = 2;
+}
+
+// Mount is a bind mount from the host into the sandbox.
+message Mount {
+  string host_path = 1;
+  string container_path = 2;
+  bool read_only = 3;
+}
+
+message SandboxSpec {
+  // OCI image reference including the registry host.
+  string image = 1;
+  // Command replaces the image entrypoint; args replaces the image cmd.
+  repeated string command = 2;
+  repeated string args = 3;
+  map<string, string> env = 4;
+  string working_dir = 5;
+  Resources resources = 6;
+  NetworkMode network = 7;
+  RuntimeClass runtime = 8;
+  repeated Mount mounts = 9;
+  map<string, string> labels = 10;
+  // Keep stdin open so that Attach can write to it.
+  bool stdin = 11;
+  // Allocate a pseudo-terminal for the main process.
+  bool tty = 12;
+  // Priority is advisory information for the policy: higher values are
+  // more important when a policy orders its queue or picks what to
+  // squeeze. The strict policy ignores it.
+  int32 priority = 13;
+  // Path of the network namespace to join when network is
+  // NETWORK_MODE_JOIN (see SandboxStatus.network.namespace_path).
+  string network_namespace = 14;
+  // Hostname inside the sandbox. Defaults to the sandbox name or ID.
+  string hostname = 15;
+}
+
+// NetworkStatus describes a sandbox's network attachment.
+message NetworkStatus {
+  // Path of the sandbox's network namespace on the host, when it owns one.
+  string namespace_path = 1;
+  // IP addresses assigned by CNI (e.g. 10.88.0.5).
+  repeated string ip_addresses = 2;
+}
+
+enum Phase {
+  PHASE_UNSPECIFIED = 0;
+  // Admission in progress or runtime creation in progress.
+  PHASE_PENDING = 1;
+  // Accepted by the policy but not yet created. Holds no allocation.
+  PHASE_QUEUED = 2;
+  // Created in the runtime but not started. Holds its allocation.
+  PHASE_CREATED = 3;
+  PHASE_RUNNING = 4;
+  // Frozen by the policy via the cgroup freezer. Holds its allocation.
+  PHASE_FROZEN = 5;
+  PHASE_EXITED = 6;
+  // Could not be created or started, was lost by the runtime, or was
+  // given up on by the policy.
+  PHASE_FAILED = 7;
+}
+
+message SandboxStatus {
+  Phase phase = 1;
+  string message = 2;
+  optional int32 exit_code = 3;
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp finished_at = 5;
+  // Effective resources after the policy rewrote the spec: what admission
+  // accounted and what cgroups enforce.
+  Resources allocated = 6;
+  // Name of the policy that admitted the sandbox.
+  string policy = 7;
+  NetworkStatus network = 8;
+}
+
+message Sandbox {
+  string id = 1;
+  string name = 2;
+  google.protobuf.Timestamp created_at = 3;
+  SandboxSpec spec = 4;
+  SandboxStatus status = 5;
+}
+
+message CreateSandboxRequest {
+  // Optional unique name.
+  string name = 1;
+  SandboxSpec spec = 2;
+}
+
+message CreateSandboxResponse {
+  Sandbox sandbox = 1;
+}
+
+message StartSandboxRequest {
+  // Sandbox ID, name, or unique ID prefix. All "sandbox" fields below
+  // accept the same forms.
+  string sandbox = 1;
+}
+
+message StartSandboxResponse {
+  Sandbox sandbox = 1;
+}
+
+message GetSandboxRequest {
+  string sandbox = 1;
+}
+
+message GetSandboxResponse {
+  Sandbox sandbox = 1;
+}
+
+message ListSandboxesRequest {}
+
+message ListSandboxesResponse {
+  repeated Sandbox sandboxes = 1;
+}
+
+message StopSandboxRequest {
+  string sandbox = 1;
+  // Grace period in seconds before SIGKILL. Zero uses the daemon default.
+  int64 timeout_seconds = 2;
+}
+
+message StopSandboxResponse {
+  Sandbox sandbox = 1;
+}
+
+message DeleteSandboxRequest {
+  string sandbox = 1;
+  bool force = 2;
+}
+
+message DeleteSandboxResponse {}
+
+message TerminalSize {
+  uint32 width = 1;
+  uint32 height = 2;
+}
+
+message ExecStart {
+  string sandbox = 1;
+  repeated string command = 2;
+  map<string, string> env = 3;
+  string working_dir = 4;
+  // Allocate a pseudo-terminal. Output then arrives only on stdout.
+  bool tty = 5;
+  // Keep stdin open until a close_stdin message arrives.
+  bool stdin = 6;
+  TerminalSize terminal_size = 7;
+}
+
+message ExecRequest {
+  oneof msg {
+    ExecStart start = 1;
+    bytes stdin = 2;
+    TerminalSize resize = 3;
+    bool close_stdin = 4;
+  }
+}
+
+message Exit {
+  int32 code = 1;
+}
+
+message ExecResponse {
+  oneof msg {
+    bytes stdout = 1;
+    bytes stderr = 2;
+    Exit exit = 3;
+  }
+}
+
+message AttachStart {
+  string sandbox = 1;
+  // Forward stdin messages to the process. Requires the sandbox to have
+  // been created with stdin set.
+  bool stdin = 2;
+  TerminalSize terminal_size = 3;
+}
+
+message AttachRequest {
+  oneof msg {
+    AttachStart start = 1;
+    bytes stdin = 2;
+    TerminalSize resize = 3;
+    bool close_stdin = 4;
+  }
+}
+
+message Attached {}
+
+message AttachResponse {
+  oneof msg {
+    bytes stdout = 1;
+    bytes stderr = 2;
+    Exit exit = 3;
+    // Sent once output forwarding is in place, so a client can start the
+    // sandbox without missing its first bytes.
+    Attached attached = 4;
+  }
+}
+
+enum LogStream {
+  LOG_STREAM_UNSPECIFIED = 0;
+  LOG_STREAM_STDOUT = 1;
+  LOG_STREAM_STDERR = 2;
+}
+
+message LogsRequest {
+  string sandbox = 1;
+  // Keep streaming until the sandbox exits.
+  bool follow = 2;
+  // Only the last N lines. Zero means everything.
+  int64 tail_lines = 3;
+  // Only entries at or after this time.
+  google.protobuf.Timestamp since = 4;
+}
+
+message LogsResponse {
+  LogStream stream = 1;
+  bytes data = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+message GetStatsRequest {
+  string sandbox = 1;
+}
+
+message Stats {
+  google.protobuf.Timestamp timestamp = 1;
+  // Cumulative CPU time consumed.
+  uint64 cpu_usage_nanos = 2;
+  // Cumulative time spent throttled by the CPU quota.
+  uint64 cpu_throttled_nanos = 3;
+  uint64 memory_usage_bytes = 4;
+  uint64 memory_limit_bytes = 5;
+  // Usage minus inactive file cache, as the kubelet defines it.
+  uint64 memory_working_set_bytes = 6;
+  uint64 pids = 7;
+  // Swap the sandbox's cgroup holds; 0 when swap is disabled for it.
+  uint64 memory_swap_usage_bytes = 8;
+}
+
+message GetStatsResponse {
+  Stats stats = 1;
+}
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_QUEUED = 1;
+  EVENT_TYPE_CREATED = 2;
+  EVENT_TYPE_STARTED = 3;
+  EVENT_TYPE_FROZEN = 4;
+  EVENT_TYPE_THAWED = 5;
+  EVENT_TYPE_EXITED = 6;
+  EVENT_TYPE_FAILED = 7;
+  EVENT_TYPE_DELETED = 8;
+}
+
+message WatchRequest {}
+
+message WatchResponse {
+  EventType type = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  Sandbox sandbox = 3;
+}
+
+message GetNodeRequest {}
+
+message NodeStatus {
+  string policy = 1;
+  string runtime = 2;
+  // Physical capacity.
+  ResourceList capacity = 3;
+  // What the policy advertises as schedulable.
+  ResourceList allocatable = 4;
+  // Sum of requests of sandboxes holding an allocation.
+  ResourceList allocated = 5;
+  int32 sandbox_count = 6;
+  // Sandboxes accepted but not yet created.
+  int32 queued_count = 7;
+}
+
+message GetNodeResponse {
+  NodeStatus node = 1;
+}
+
+message GetVersionRequest {}
+
+message GetVersionResponse {
+  string version = 1;
+}
