@@ -143,6 +143,15 @@ func (r *Runtime) addScanPath(dir string) {
 	}
 }
 
+// makeWakePipe creates the pipe a sandbox's init waits on for exec and kill requests.
+func makeWakePipe(dir string) error {
+	p := filepath.Join(dir, "wake")
+	if err := syscall.Mkfifo(p, 0o666); err != nil && !errors.Is(err, syscall.EEXIST) {
+		return fmt.Errorf("mkfifo: %w", err)
+	}
+	return os.Chmod(p, 0o666)
+}
+
 // inTreeSpecOpts makes the sandbox checkpointable: tidelet-init as its init, ahead of the
 // sandbox's own command, and the control directory it takes exec requests from.
 func (r *Runtime) inTreeSpecOpts(id string) ([]oci.SpecOpts, error) {
@@ -152,6 +161,9 @@ func (r *Runtime) inTreeSpecOpts(id string) ([]oci.SpecOpts, error) {
 	}
 	_ = os.Chmod(dir, 0o777)
 	_ = os.Chmod(filepath.Join(dir, "req"), 0o777)
+	if err := makeWakePipe(dir); err != nil {
+		return nil, err
+	}
 	return []oci.SpecOpts{
 		oci.WithMounts([]specs.Mount{
 			{Type: "bind", Source: r.cfg.InitBinary, Destination: initMount, Options: []string{"rbind", "ro"}},
@@ -175,23 +187,91 @@ type initRequest struct {
 	Stderr string   `json:"stderr"`
 }
 
-// execDrainWait is how long an exec's output pipe may stay empty, once the command has exited,
-// before its copy ends.
-const execDrainWait = 20 * time.Millisecond
+// openPipe creates a named pipe if it is not there and opens it for reading. It is held
+// read-write, so it never reports end-of-file and stays usable across a restore.
+func openPipe(p string) (*os.File, error) {
+	if err := syscall.Mkfifo(p, 0o666); err != nil && !errors.Is(err, syscall.EEXIST) {
+		return nil, fmt.Errorf("mkfifo: %w", err)
+	}
+	_ = os.Chmod(p, 0o666)
+	return os.OpenFile(p, os.O_RDWR, 0)
+}
 
-func isClosed(ch chan struct{}) bool {
-	select {
-	case <-ch:
-		return true
-	default:
-		return false
+// poke writes a byte to a named pipe, waking whoever reads it; without a reader it does nothing.
+func poke(p string) {
+	if fd, err := syscall.Open(p, syscall.O_WRONLY|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0); err == nil {
+		_, _ = syscall.Write(fd, []byte{1})
+		_ = syscall.Close(fd)
 	}
 }
 
+// pokeAll pokes every pipe in dir whose name ends in suffix.
+func pokeAll(dir, suffix string) {
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), suffix) {
+			poke(filepath.Join(dir, e.Name()))
+		}
+	}
+}
+
+// poked returns a channel closed when a byte arrives on f, or f is closed.
+func poked(f *os.File) <-chan struct{} {
+	ch := make(chan struct{})
+	go func() {
+		var b [1]byte
+		_, _ = f.Read(b[:])
+		close(ch)
+	}()
+	return ch
+}
+
+// copyPipe copies an output pipe to w until endPipe is called on it, and then what the
+// pipe still holds: once the writer has exited that is all it wrote.
+func copyPipe(f *os.File, w io.Writer) {
+	buf := make([]byte, 32<<10)
+	for {
+		n, err := f.Read(buf)
+		if n > 0 {
+			if _, werr := w.Write(buf[:n]); werr != nil {
+				return
+			}
+		}
+		if err == nil {
+			continue
+		}
+		if !errors.Is(err, os.ErrDeadlineExceeded) {
+			return
+		}
+		_ = f.SetReadDeadline(time.Time{})
+		rc, err := f.SyscallConn()
+		if err != nil {
+			return
+		}
+		_ = rc.Read(func(fd uintptr) bool {
+			for {
+				n, err := syscall.Read(int(fd), buf)
+				if n > 0 {
+					if _, werr := w.Write(buf[:n]); werr != nil {
+						return true
+					}
+					continue
+				}
+				if err != syscall.EINTR {
+					return true // empty (EAGAIN): done
+				}
+			}
+		})
+		return
+	}
+}
+
+// endPipe makes the pipe's copyPipe finish with what the pipe holds.
+func endPipe(f *os.File) { _ = f.SetReadDeadline(time.Now()) }
+
 // execInTree runs a command as a child of the sandbox's init (see tidelet-init). Stdin is
-// copied to a file first; stdout and stderr are named pipes this side holds open for reading
-// and writing, so they never report end-of-file, and the exit status comes from the status
-// file init writes. While the sandbox is rolled back the exec simply waits: its process is
+// copied to a file first; stdout and stderr are named pipes this side holds open, and init
+// reports the end of the command by writing its status file and a byte to the done pipe. While the sandbox is rolled back the exec simply waits: its process is
 // in the checkpoint and comes back with the restore.
 func (r *Runtime) execInTree(ctx context.Context, id string, t *taskIO, opts runtime.ExecOptions) (runtime.ExecResult, error) {
 	spec, err := t.task.Spec(ctx)
@@ -207,7 +287,7 @@ func (r *Runtime) execInTree(ctx context.Context, id string, t *taskIO, opts run
 	dir := r.ctlDir(id)
 	eid := "x" + strconv.FormatInt(time.Now().UnixNano(), 36)
 	defer func() {
-		for _, s := range []string{".in", ".out", ".err", ".status", ".kill"} {
+		for _, s := range []string{".in", ".out", ".err", ".status", ".kill", ".done"} {
 			_ = os.Remove(filepath.Join(dir, eid+s))
 		}
 	}()
@@ -225,14 +305,13 @@ func (r *Runtime) execInTree(ctx context.Context, id string, t *taskIO, opts run
 		req.Stdin = ctlMount + "/" + eid + ".in"
 	}
 	var readers []*os.File
-	exited := make(chan struct{}) // closed once the command's status is known: the pipes then hold all it wrote
-	pump := func(suffix string, w io.Writer) (string, chan struct{}, error) {
-		p := filepath.Join(dir, eid+suffix)
-		if err := syscall.Mkfifo(p, 0o666); err != nil {
-			return "", nil, fmt.Errorf("mkfifo: %w", err)
+	defer func() {
+		for _, f := range readers {
+			f.Close()
 		}
-		_ = os.Chmod(p, 0o666)
-		f, err := os.OpenFile(p, os.O_RDWR, 0)
+	}()
+	pump := func(suffix string, w io.Writer) (string, chan struct{}, error) {
+		f, err := openPipe(filepath.Join(dir, eid+suffix))
 		if err != nil {
 			return "", nil, err
 		}
@@ -241,26 +320,7 @@ func (r *Runtime) execInTree(ctx context.Context, id string, t *taskIO, opts run
 		if w == nil {
 			w = io.Discard
 		}
-		go func() {
-			defer close(done)
-			buf := make([]byte, 32<<10)
-			for {
-				select {
-				case <-exited: // drain: a read that finds the pipe empty ends the copy
-					_ = f.SetReadDeadline(time.Now().Add(execDrainWait))
-				default:
-				}
-				n, err := f.Read(buf)
-				if n > 0 {
-					if _, werr := w.Write(buf[:n]); werr != nil {
-						return
-					}
-				}
-				if err != nil && !(errors.Is(err, os.ErrDeadlineExceeded) && !isClosed(exited)) {
-					return
-				}
-			}
-		}()
+		go func() { copyPipe(f, w); close(done) }()
 		return ctlMount + "/" + eid + suffix, done, nil
 	}
 	outPath, outDone, err := pump(".out", opts.Stdout)
@@ -271,6 +331,12 @@ func (r *Runtime) execInTree(ctx context.Context, id string, t *taskIO, opts run
 	if err != nil {
 		return runtime.ExecResult{}, err
 	}
+	doneFile, err := openPipe(filepath.Join(dir, eid+".done"))
+	if err != nil {
+		return runtime.ExecResult{}, err
+	}
+	defer doneFile.Close()
+	ended := poked(doneFile)
 	req.Stdout, req.Stderr = outPath, errPath
 	data, _ := json.Marshal(req)
 	tmp := filepath.Join(dir, "req", eid+".json.tmp")
@@ -280,48 +346,33 @@ func (r *Runtime) execInTree(ctx context.Context, id string, t *taskIO, opts run
 	if err := os.Rename(tmp, strings.TrimSuffix(tmp, ".tmp")); err != nil {
 		return runtime.ExecResult{}, err
 	}
-	statusPath := filepath.Join(dir, eid+".status")
-	killed := false
-	var killDeadline time.Time
-	started := time.Now()
+	wake := filepath.Join(dir, "wake")
+	poke(wake)
+
 	code := -1
 	var waitErr error
-	for {
-		if b, err := os.ReadFile(statusPath); err == nil {
-			code, _ = strconv.Atoi(strings.TrimSpace(string(b)))
-			break
-		}
-		if _, err := os.Stat(dir); err != nil && os.IsNotExist(err) {
-			code = 137 // the sandbox was deleted under the exec: as if killed
-			break
-		}
-		if !killed && ctx.Err() != nil {
-			killed = true
-			killDeadline = time.Now().Add(30 * time.Second)
-			_ = os.WriteFile(filepath.Join(dir, eid+".kill"), nil, 0o644)
-			waitErr = ctx.Err()
-		}
-		if killed && time.Now().After(killDeadline) {
-			waitErr = fmt.Errorf("exec: process did not end after kill: %w", ctx.Err())
-			break
-		}
-		// Short commands are the common case: poll fast at first, then back off.
-		if time.Since(started) < 200*time.Millisecond {
-			time.Sleep(2 * time.Millisecond)
-		} else {
-			time.Sleep(50 * time.Millisecond)
+	select {
+	case <-ended:
+	case <-ctx.Done():
+		waitErr = ctx.Err()
+		_ = os.WriteFile(filepath.Join(dir, eid+".kill"), nil, 0o644)
+		poke(wake)
+		select {
+		case <-ended:
+		case <-time.After(30 * time.Second):
+			return runtime.ExecResult{ExitCode: -1}, fmt.Errorf("exec: process did not end after kill: %w", ctx.Err())
 		}
 	}
-	// Drain what the pipes still hold, then stop the copies.
-	close(exited)
+	if b, err := os.ReadFile(filepath.Join(dir, eid+".status")); err == nil {
+		code, _ = strconv.Atoi(strings.TrimSpace(string(b)))
+	} else {
+		code = 137 // the sandbox was deleted under the exec: as if killed
+	}
 	for _, f := range readers {
-		_ = f.SetReadDeadline(time.Now().Add(execDrainWait))
+		endPipe(f)
 	}
 	<-outDone
 	<-errDone
-	for _, f := range readers {
-		f.Close()
-	}
 	return runtime.ExecResult{ExitCode: int32(code)}, waitErr
 }
 
@@ -801,6 +852,7 @@ func (r *Runtime) AbandonContainer(id string) {
 		if eid, ok := strings.CutSuffix(e.Name(), ".out"); ok {
 			if _, err := os.Stat(filepath.Join(dir, eid+".status")); err != nil {
 				_ = os.WriteFile(filepath.Join(dir, eid+".status"), []byte("137"), 0o644)
+				poke(filepath.Join(dir, eid+".done"))
 			}
 		}
 	}
@@ -824,6 +876,7 @@ func (r *Runtime) forgetWhole(id string) {
 			}
 		}
 		_ = os.RemoveAll(filepath.Join(r.criuDir(), id))
+		pokeAll(r.ctlDir(id), ".done") // execs waiting on the sandbox stop waiting
 		_ = os.RemoveAll(r.ctlDir(id))
 	}()
 }

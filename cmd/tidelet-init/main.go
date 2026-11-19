@@ -14,11 +14,13 @@
 //	                stdin is a regular file (or empty for /dev/null), stdout and stderr
 //	                named pipes that tideletd keeps open for reading
 //	<id>.kill       a request to SIGKILL the exec's process group
+//	wake            a named pipe: tideletd writes a byte after leaving a request
 //	<id>.status     written by init when the exec ends: its exit code (128+signal)
+//	<id>.done       a named pipe tideletd reads: init writes a byte after the status
 //
-// Requests are found by polling, every 20 ms: nothing to restore for CRIU
-// (no inotify), and the cost is one readdir. The program exits with its own
-// command's status when that command ends, as a container's init would.
+// Nothing is polled: init sleeps until a child ends (SIGCHLD) or tideletd writes to the
+// wake pipe, and a plain pipe is all CRIU has to restore (no inotify). The program exits
+// with its own command's status when that command ends, as a container's init would.
 package main
 
 import (
@@ -30,7 +32,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 )
 
 const ctl = "/.tidelet/ctl"
@@ -69,6 +70,10 @@ func main() {
 	signal.Ignore(syscall.SIGPIPE)
 	sigs := make(chan os.Signal, 8)
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	children := make(chan os.Signal, 1)
+	signal.Notify(children, syscall.SIGCHLD)
+	_ = os.MkdirAll(filepath.Join(ctl, "req"), 0o755)
+	wake := wakeups()
 
 	mainPid, err := spawn(args, os.Environ(), "", os.Stdin, os.Stdout, os.Stderr)
 	if err != nil {
@@ -77,15 +82,15 @@ func main() {
 	}
 	execs := map[int]string{} // pid -> exec id
 	known := map[string]bool{}
-	_ = os.MkdirAll(filepath.Join(ctl, "req"), 0o755)
 
-	tick := time.NewTicker(20 * time.Millisecond)
-	defer tick.Stop()
-	for {
-		select {
-		case s := <-sigs:
-			_ = syscall.Kill(mainPid, s.(syscall.Signal))
-		case <-tick.C:
+	for first := true; ; first = false {
+		if !first { // the first pass picks up what was asked before the pipe was open
+			select {
+			case s := <-sigs:
+				_ = syscall.Kill(mainPid, s.(syscall.Signal))
+			case <-children:
+			case <-wake:
+			}
 		}
 		// Reap every child that ended: ours, and orphans re-parented to init.
 		for {
@@ -103,7 +108,7 @@ func main() {
 			}
 			if id, ok := execs[pid]; ok {
 				delete(execs, pid)
-				writeFile(filepath.Join(ctl, id+".status"), strconv.Itoa(code))
+				finish(id, code)
 			}
 		}
 		// Kill requests.
@@ -133,11 +138,46 @@ func main() {
 			_ = os.Remove(path)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "tidelet-init: exec %s: %v\n", id, err)
-				writeFile(filepath.Join(ctl, id+".status"), "127")
+				finish(id, 127)
 				continue
 			}
 			execs[pid] = id
 		}
+	}
+}
+
+// wakeups reports each byte tideletd writes to the wake pipe. The pipe is opened read-write
+// and blocking: it never reports end-of-file, and reading it parks one thread.
+func wakeups() <-chan struct{} {
+	ch := make(chan struct{}, 1)
+	path := filepath.Join(ctl, "wake")
+	_ = syscall.Mkfifo(path, 0o666)
+	fd, err := syscall.Open(path, syscall.O_RDWR|syscall.O_CLOEXEC, 0)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "tidelet-init: wake pipe:", err)
+		return ch
+	}
+	go func() {
+		buf := make([]byte, 64)
+		for {
+			if n, err := syscall.Read(fd, buf); n <= 0 && err != syscall.EINTR {
+				return
+			}
+			select {
+			case ch <- struct{}{}:
+			default:
+			}
+		}
+	}()
+	return ch
+}
+
+// finish records an exec's exit code and tells tideletd, if it is waiting.
+func finish(id string, code int) {
+	writeFile(filepath.Join(ctl, id+".status"), strconv.Itoa(code))
+	if fd, err := syscall.Open(filepath.Join(ctl, id+".done"), syscall.O_WRONLY|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0); err == nil {
+		_, _ = syscall.Write(fd, []byte{1})
+		_ = syscall.Close(fd)
 	}
 }
 
