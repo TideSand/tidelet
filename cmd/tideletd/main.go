@@ -52,6 +52,7 @@ func run() error {
 	policyOpts := kvFlag{}
 	var (
 		listen         = flag.String("listen", server.DefaultSocket, "gRPC unix socket path or tcp://host:port")
+		socketGroup    = flag.String("socket-group", "", "group (name or ID) allowed to use the unix socket besides root")
 		httpListen     = flag.String("http-listen", server.DefaultHTTPAddress, "REST gateway host:port (empty disables)")
 		stateDir       = flag.String("state-dir", "/var/lib/tidelet", "directory for persistent state and logs")
 		wholeCkpts     = flag.Bool("container-checkpoints", false, "make sandboxes checkpointable as a whole (processes, memory, filesystem) with CRIU: tidelet-init, next to tideletd, runs as each sandbox's init and starts its execs; whole-sandbox rollbacks stop a sandbox and restores resume it")
@@ -277,7 +278,9 @@ func run() error {
 	}
 	logger.Info("tideletd starting", "version", version.Version, "policy", pol.Name(),
 		"capacity", capacity.String(), "reserved", reserved.String())
-	return server.New(mgr, logger).Serve(ctx, *listen, *httpListen)
+	srv := server.New(mgr, logger)
+	srv.SocketGroup = *socketGroup
+	return srv.Serve(ctx, *listen, *httpListen)
 }
 
 // checkpointPath is --checkpoint-dir, or <state-dir>/checkpoints.

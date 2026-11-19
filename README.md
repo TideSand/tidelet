@@ -134,6 +134,7 @@ Flags worth knowing (`tideletd --help` lists all):
 - `--llm-proxy-listen ADDR`: the model-API proxy. A sandbox sends its model calls to it (its base-URL setting), and
   the proxy forwards each to the sandbox's upstream (the label `tidelet.io/llm-upstream`, else `--llm-upstream`),
   reporting requests and responses to the policy, which may hold a response's tool calls back (`--llm-max-defer`).
+- `--socket-group GROUP`: let a group besides root use the API socket.
 - `--containerd-namespace NS`: the containerd namespace sandboxes and images live in (`moby` shares Docker's images).
 - `--sandbox-swap limit`: a sandbox whose policy leaves its swap unlimited may swap at most its memory limit.
 - `--sample-interval`: how often every sandbox is sampled for the policy.
@@ -158,7 +159,23 @@ curl -s -X POST localhost:7474/v1alpha1/snapshots -d '{"sandbox": "agent", "name
 curl -s -X POST localhost:7474/v1alpha1/sandboxes -d '{"name": "worker", "spec": {"snapshot": "warm"}}'
 ```
 
-`pkg/rpc/client` is a Go client.
+`pkg/rpc/client` is a Go client, and `python/` a Python one.
+
+## Python
+
+The `tidelet` pip package (in `python/`) bundles the binaries and wraps the API:
+
+```python
+from tidelet.daemon import Daemon
+
+with Daemon.isolated("demo") as daemon:            # or Client() for a daemon that is already running
+    client = daemon.client()
+    box = client.run("docker.io/library/python:3.12-slim", ["sleep", "infinity"], cpus=1, memory="1Gi")
+    print(box.exec(["python3", "-c", "print(6 * 7)"]).stdout)
+    copies = box.fork(3)
+```
+
+`make python` builds the wheel; see [python/README.md](python/README.md).
 
 ## Layout
 
@@ -171,6 +188,7 @@ pkg/llmproxy                                    the model-API proxy
 pkg/runtime                                     containerd/runc backend, snapshots and forks, checkpoints, networking
 pkg/runtime/criuimg                             rewrites CRIU images so restores share memory
 pkg/host                                        capacity, pressure, the pool cgroup, the memory-traffic meter
+python/                                         the pip package: the binaries, tidelet.client, tidelet.daemon
 ```
 
 ## Development
@@ -180,6 +198,11 @@ make build test     # go test -race ./...
 make vet fmt
 make proto          # after editing the .proto
 ```
+
+CI (`.github/workflows`) runs the Go checks and builds the x86_64 and aarch64 wheels on every push and pull request.
+Releases are cut by [release-please](https://github.com/googleapis/release-please): commits follow
+[Conventional Commits](https://www.conventionalcommits.org) (`feat:`, `fix:`, ...), a release pull request collects
+them into `CHANGELOG.md` and the next version, and merging it tags the release and attaches the wheels to it.
 
 ## License
 

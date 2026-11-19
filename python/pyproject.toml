@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tidelet"
+version = "0.1.0"
+description = "A sandbox daemon for AI agents: containers you can fork in milliseconds, with a Python client"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+classifiers = [
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = [
+    "grpcio>=1.85.3",
+    "protobuf>=7.35.1",
+    "googleapis-common-protos>=1.60",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "grpcio-tools>=1.85.3", "build"]
+
+[project.urls]
+Repository = "https://github.com/TideSand/tidelet"
+
+[project.scripts]
+# The bundled Go binaries, on PATH after `pip install tidelet`.
+tidelet = "tidelet._bin:run_tidelet"
+tideletd = "tidelet._bin:run_tideletd"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tidelet"]
+artifacts = ["src/tidelet/bin/*"]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "hatch_build.py"
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "hatch_build.py", "README.md", "scripts", "tests"]
+exclude = ["src/tidelet/bin"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

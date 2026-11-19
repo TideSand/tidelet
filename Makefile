@@ -4,7 +4,7 @@ VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo de
 LDFLAGS   := -X github.com/TideSand/tidelet/pkg/version.Version=$(VERSION)
 PKGS      := ./...
 
-.PHONY: all build test lint vet fmt tidy proto clean
+.PHONY: all build test lint vet fmt tidy proto python clean
 
 all: build
 
@@ -32,6 +32,11 @@ tidy:
 proto:
 	$(GO) tool buf lint
 	$(GO) tool buf generate
+	@echo "then regenerate the Python code: python/scripts/gen_proto.sh (needs grpcio-tools)"
+
+# The pip package: a wheel holding the binaries and the Python client, in python/dist.
+python:
+	cd python && (uv build --wheel || python3 -m build --wheel)
 
 clean:
 	rm -rf $(BIN_DIR)

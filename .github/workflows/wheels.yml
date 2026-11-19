@@ -1,0 +1,58 @@
+# Builds the pip package's wheels (python/), one per architecture. Called by ci.yml and release.yml.
+name: wheels
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  wheel:
+    name: wheel (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      # The binaries are static Go, so the aarch64 wheel is cross-compiled here.
+      - name: Build
+        working-directory: python
+        env:
+          TIDELET_ARCH: ${{ matrix.arch }}
+        run: uv build --wheel
+
+      - name: Check the wheel
+        working-directory: python
+        run: |
+          ls -l dist
+          test "$(ls dist/*.whl | wc -l)" = 1
+          ls dist/tidelet-*-py3-none-manylinux_2_17_${{ matrix.arch }}.whl
+          unzip -l dist/*.whl | grep -E 'tidelet/bin/(tideletd|tidelet|tidelet-init)$' | wc -l | grep -qx 3
+
+      # Only the wheel for the runner's architecture can be installed and run here.
+      - name: Install and test
+        if: matrix.arch == 'x86_64'
+        working-directory: python
+        run: |
+          uv venv /tmp/venv
+          uv pip install --python /tmp/venv/bin/python dist/*.whl pytest
+          version=$(/tmp/venv/bin/python -c 'import tidelet; print(tidelet.__version__)')
+          test "$(/tmp/venv/bin/tideletd --version)" = "$version"
+          /tmp/venv/bin/tidelet --help > /dev/null
+          /tmp/venv/bin/python -m pytest tests
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.arch }}
+          path: python/dist/*.whl
+          if-no-files-found: error

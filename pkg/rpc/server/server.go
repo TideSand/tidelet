@@ -11,7 +11,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -43,8 +45,12 @@ const DefaultHTTPAddress = "127.0.0.1:7474"
 
 // Server serves the API.
 type Server struct {
-	mgr      *manager.Manager
-	log      *slog.Logger
+	mgr *manager.Manager
+	log *slog.Logger
+	// SocketGroup, when set before Serve, is the group (a name or a numeric ID) that may
+	// use the unix socket besides root, as docker's group may use dockerd's.
+	SocketGroup string
+
 	sb       *sandboxServer
 	sn       *snapshotServer
 	nd       *nodeServer
@@ -126,12 +132,33 @@ func Listen(addr string) (net.Listener, error) {
 	return ln, nil
 }
 
+// chownGroup gives a path to a group, named or numeric.
+func chownGroup(path, group string) error {
+	gid, err := strconv.Atoi(group)
+	if err != nil {
+		g, lerr := user.LookupGroup(group)
+		if lerr != nil {
+			return lerr
+		}
+		if gid, err = strconv.Atoi(g.Gid); err != nil {
+			return err
+		}
+	}
+	return os.Chown(path, -1, gid)
+}
+
 // Serve runs the gRPC server on grpcAddr and, if httpAddr is not empty,
 // the REST gateway on httpAddr, until ctx is done.
 func (s *Server) Serve(ctx context.Context, grpcAddr, httpAddr string) error {
 	grpcLn, err := Listen(grpcAddr)
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", grpcAddr, err)
+	}
+	if s.SocketGroup != "" && !strings.HasPrefix(grpcAddr, "tcp://") {
+		if err := chownGroup(strings.TrimPrefix(grpcAddr, "unix://"), s.SocketGroup); err != nil {
+			_ = grpcLn.Close()
+			return fmt.Errorf("socket group %s: %w", s.SocketGroup, err)
+		}
 	}
 	g := grpc.NewServer(grpc.UnaryInterceptor(s.unaryLog), grpc.StreamInterceptor(s.streamLog))
 	s.Register(g)
