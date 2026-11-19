@@ -175,6 +175,19 @@ type initRequest struct {
 	Stderr string   `json:"stderr"`
 }
 
+// execDrainWait is how long an exec's output pipe may stay empty, once the command has exited,
+// before its copy ends.
+const execDrainWait = 20 * time.Millisecond
+
+func isClosed(ch chan struct{}) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+		return false
+	}
+}
+
 // execInTree runs a command as a child of the sandbox's init (see tidelet-init). Stdin is
 // copied to a file first; stdout and stderr are named pipes this side holds open for reading
 // and writing, so they never report end-of-file, and the exit status comes from the status
@@ -212,6 +225,7 @@ func (r *Runtime) execInTree(ctx context.Context, id string, t *taskIO, opts run
 		req.Stdin = ctlMount + "/" + eid + ".in"
 	}
 	var readers []*os.File
+	exited := make(chan struct{}) // closed once the command's status is known: the pipes then hold all it wrote
 	pump := func(suffix string, w io.Writer) (string, chan struct{}, error) {
 		p := filepath.Join(dir, eid+suffix)
 		if err := syscall.Mkfifo(p, 0o666); err != nil {
@@ -227,7 +241,26 @@ func (r *Runtime) execInTree(ctx context.Context, id string, t *taskIO, opts run
 		if w == nil {
 			w = io.Discard
 		}
-		go func() { _, _ = io.Copy(w, f); close(done) }()
+		go func() {
+			defer close(done)
+			buf := make([]byte, 32<<10)
+			for {
+				select {
+				case <-exited: // drain: a read that finds the pipe empty ends the copy
+					_ = f.SetReadDeadline(time.Now().Add(execDrainWait))
+				default:
+				}
+				n, err := f.Read(buf)
+				if n > 0 {
+					if _, werr := w.Write(buf[:n]); werr != nil {
+						return
+					}
+				}
+				if err != nil && !(errors.Is(err, os.ErrDeadlineExceeded) && !isClosed(exited)) {
+					return
+				}
+			}
+		}()
 		return ctlMount + "/" + eid + suffix, done, nil
 	}
 	outPath, outDone, err := pump(".out", opts.Stdout)
@@ -250,8 +283,7 @@ func (r *Runtime) execInTree(ctx context.Context, id string, t *taskIO, opts run
 	statusPath := filepath.Join(dir, eid+".status")
 	killed := false
 	var killDeadline time.Time
-	tick := time.NewTicker(50 * time.Millisecond)
-	defer tick.Stop()
+	started := time.Now()
 	code := -1
 	var waitErr error
 	for {
@@ -273,11 +305,17 @@ func (r *Runtime) execInTree(ctx context.Context, id string, t *taskIO, opts run
 			waitErr = fmt.Errorf("exec: process did not end after kill: %w", ctx.Err())
 			break
 		}
-		<-tick.C
+		// Short commands are the common case: poll fast at first, then back off.
+		if time.Since(started) < 200*time.Millisecond {
+			time.Sleep(2 * time.Millisecond)
+		} else {
+			time.Sleep(50 * time.Millisecond)
+		}
 	}
 	// Drain what the pipes still hold, then stop the copies.
+	close(exited)
 	for _, f := range readers {
-		_ = f.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+		_ = f.SetReadDeadline(time.Now().Add(execDrainWait))
 	}
 	<-outDone
 	<-errDone
