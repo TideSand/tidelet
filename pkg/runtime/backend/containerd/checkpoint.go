@@ -55,7 +55,7 @@ const DefaultCheckpointDir = "/var/lib/tidelet/checkpoints"
 var defaultRollbackExclude = []string{"proc", "sys", "dev", "run", "root/.claude", "tmp/claude*", "logs"}
 
 // defaultKeepProcesses are process names a rollback never kills: the agent.
-var defaultKeepProcesses = []string{"claude", "tidebox-exec"}
+var defaultKeepProcesses = []string{"claude"}
 
 // checkpoint is one sandbox's latest checkpoint.
 type checkpoint struct {

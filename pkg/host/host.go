@@ -293,7 +293,7 @@ func readPSI(path string) PSI {
 // debug view reports for them (/sys/kernel/debug/sched/debug, root and a
 // mounted debugfs). `cpus` is a cpuset list ("0-55", "0,2,4-7"); empty means
 // every CPU. Unlike ProcsRunning it leaves out what runs elsewhere on the
-// host (a replay harness pinned to other cores), so it is the demand on a
+// host (a workload driver pinned to other cores), so it is the demand on a
 // pool confined to a cpuset. ok is false when the view cannot be read.
 func RunnableOn(cpus string) (n uint64, ok bool) {
 	f, err := os.Open("/sys/kernel/debug/sched/debug")

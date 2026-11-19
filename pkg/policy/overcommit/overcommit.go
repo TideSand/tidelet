@@ -1,11 +1,9 @@
-// Package overcommit implements the "overcommit" policy, the threshold
-// baseline: overcommit by measured use. A sandbox starts when it arrives
+// Package overcommit implements the "overcommit" policy: threshold
+// overcommit by measured use. A sandbox starts when it arrives
 // while the pool's measured CPU and memory use are both under `threshold`
 // (80 %) and nothing is booting; otherwise it is rejected, and the workload
-// asks again after its own interval. Arrivals are the workload's to pace
-// (TideBox's replay driver submits one sandbox per --interval), so each
-// start shows in the
-// measurements before the next decision. Requests are not reserved; what
+// asks again after its own interval. Arrivals are the workload's to pace,
+// so each start shows in the measurements before the next decision. Requests are not reserved; what
 // counts is what the sandboxes really use. Once a sandbox runs nothing is
 // done about it: limits are hard caps, and if the sandboxes together
 // outgrow the pool, the kernel swaps.
@@ -29,7 +27,7 @@ import (
 // Name is the policy's registered name.
 const Name = "overcommit"
 
-// Gate is the baseline's admission rule, on its own so the policies built
+// Gate is the policy's admission rule, on its own so the policies built
 // on it (agentcgroup's optional gate) share it: a
 // sandbox that arrives while the load allows one runs, any other is
 // rejected for the workload to offer again later.
@@ -51,7 +49,7 @@ type Status struct {
 	Rejected int    // arrivals rejected so far
 }
 
-// NewGate builds a gate with the baseline's defaults.
+// NewGate builds a gate with the policy's defaults.
 func NewGate() Gate { return Gate{Threshold: 0.8, Swap: true} }
 
 // Option applies a gate option; ok is false for a key it does not know.

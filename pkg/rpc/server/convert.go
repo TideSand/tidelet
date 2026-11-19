@@ -55,6 +55,7 @@ func fromSpec(s *pb.SandboxSpec) sandbox.Spec {
 		TTY:        s.GetTty(),
 		Priority:   s.GetPriority(),
 		Hostname:   s.GetHostname(),
+		Snapshot:   s.GetSnapshot(),
 	}
 	out.NetworkNamespace = s.GetNetworkNamespace()
 	switch s.GetNetwork() {
@@ -82,7 +83,32 @@ func fromSpec(s *pb.SandboxSpec) sandbox.Spec {
 			HostPath: m.GetHostPath(), ContainerPath: m.GetContainerPath(), ReadOnly: m.GetReadOnly(),
 		})
 	}
+	if out.Snapshot != "" {
+		// Network and runtime come from the snapshot unless the request names them.
+		if s.GetNetwork() == pb.NetworkMode_NETWORK_MODE_UNSPECIFIED {
+			out.Network = ""
+		}
+		if s.GetRuntime() == pb.RuntimeClass_RUNTIME_CLASS_UNSPECIFIED {
+			out.Runtime = ""
+		}
+	}
 	return out
+}
+
+func toSnapshot(s sandbox.Snapshot) *pb.Snapshot {
+	return &pb.Snapshot{
+		Id:           s.ID,
+		Name:         s.Name,
+		Sandbox:      s.Sandbox,
+		SandboxName:  s.SandboxName,
+		CreatedAt:    timestamppb.New(s.CreatedAt),
+		Spec:         toSpec(s.Spec),
+		SharedBytes:  s.SharedBytes,
+		PrivateBytes: s.PrivateBytes,
+		TookSeconds:  s.Took.Seconds(),
+		Ephemeral:    s.Ephemeral,
+		Sandboxes:    int32(s.Sandboxes),
+	}
 }
 
 func toSpec(s sandbox.Spec) *pb.SandboxSpec {
@@ -99,6 +125,7 @@ func toSpec(s sandbox.Spec) *pb.SandboxSpec {
 		Priority:         s.Priority,
 		NetworkNamespace: s.NetworkNamespace,
 		Hostname:         s.Hostname,
+		Snapshot:         s.Snapshot,
 	}
 	switch s.Network {
 	case sandbox.NetworkHost:

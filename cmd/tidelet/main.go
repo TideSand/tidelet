@@ -57,7 +57,7 @@ func main() {
 	root.PersistentFlags().StringVar(&socket, "socket", envOr("TIDELET_SOCKET", server.DefaultSocket), "tideletd socket path or tcp://host:port")
 	root.PersistentFlags().BoolVar(&jsonOut, "json", false, "output JSON")
 	root.AddCommand(runCmd(), startCmd(), lsCmd(), inspectCmd(), stopCmd(), rmCmd(), execCmd(), attachCmd(),
-		logsCmd(), statsCmd(), nodeCmd(), eventsCmd(), versionCmd())
+		logsCmd(), statsCmd(), forkCmd(), snapshotCmd(), nodeCmd(), eventsCmd(), versionCmd())
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	err := root.ExecuteContext(ctx)
@@ -196,6 +196,7 @@ func runCmd() *cobra.Command {
 		stdin, tty, detach, hostNetwork bool
 		priority                        int32
 		netns, runtimeClass, hostname   string
+		snapshot                        string
 	)
 	cmd := &cobra.Command{
 		Use:   "run [flags] -- [command...]",
@@ -208,9 +209,15 @@ strict policy they are also what the sandbox reserves on the node.
 the strict policy rejects requests that differ from limits.
 
 Without --detach the command attaches to the sandbox and exits with its
-exit code, like docker run.`,
+exit code, like docker run.
+
+--snapshot creates the sandbox as a copy of a snapshotted sandbox instead of
+running an image: its processes continue from the snapshot. Only --name,
+--hostname, --label, --priority and the resource flags apply; without the
+resource flags the copy gets what the snapshotted sandbox had.`,
 		Example: `  tidelet run --name hello --cpus 1 --memory 512Mi --image docker.io/library/alpine:3.20 -- sleep 300
-  tidelet run -it --image docker.io/library/alpine:3.20 -- sh`,
+  tidelet run -it --image docker.io/library/alpine:3.20 -- sh
+  tidelet run -d --snapshot warm --name worker1`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			res, err := parseResources(cpuReq, memReq, cpus, memory)
@@ -228,6 +235,19 @@ exit code, like docker run.`,
 				Tty:        tty,
 				Priority:   priority,
 				Hostname:   hostname,
+			}
+			if snapshot != "" {
+				if image != "" || len(args) > 0 {
+					return errors.New("--snapshot continues the snapshot's processes: no --image or command")
+				}
+				spec = &pb.SandboxSpec{Snapshot: snapshot, Labels: parseKV(labels), Priority: priority, Hostname: hostname}
+				if cpus != "" || memory != "" || cpuReq != "" || memReq != "" {
+					spec.Resources = res
+				}
+				return createAndRun(ctx, name, spec, detach, false, false)
+			}
+			if image == "" {
+				return errors.New("--image is required (or --snapshot)")
 			}
 			if hostNetwork {
 				network = "host"
@@ -265,33 +285,13 @@ exit code, like docker run.`,
 					HostPath: parts[0], ContainerPath: parts[1], ReadOnly: len(parts) == 3 && parts[2] == "ro",
 				})
 			}
-			created, err := api.Sandboxes.CreateSandbox(ctx, &pb.CreateSandboxRequest{Name: name, Spec: spec})
-			if err != nil {
-				return err
-			}
-			sb := created.GetSandbox()
-			if sb.GetStatus().GetPhase() == pb.Phase_PHASE_QUEUED {
-				fmt.Fprintf(os.Stderr, "sandbox %s queued by policy; it will start when dispatched\n", sb.GetId())
-				_, err := api.Sandboxes.StartSandbox(ctx, &pb.StartSandboxRequest{Sandbox: sb.GetId()})
-				if err != nil {
-					return err
-				}
-				fmt.Println(sb.GetId())
-				return nil
-			}
-			if detach {
-				if _, err := api.Sandboxes.StartSandbox(ctx, &pb.StartSandboxRequest{Sandbox: sb.GetId()}); err != nil {
-					return err
-				}
-				fmt.Println(sb.GetId())
-				return nil
-			}
-			return runAttached(ctx, sb.GetId(), stdin, tty, true)
+			return createAndRun(ctx, name, spec, detach, stdin, tty)
 		},
 	}
 	f := cmd.Flags()
 	f.StringVar(&name, "name", "", "sandbox name (unique)")
-	f.StringVar(&image, "image", "", "OCI image reference (required)")
+	f.StringVar(&image, "image", "", "OCI image reference")
+	f.StringVar(&snapshot, "snapshot", "", "create the sandbox as a copy of this snapshot instead of running an image")
 	f.StringVar(&cpus, "cpus", "", "CPU limit, e.g. 1 or 500m")
 	f.StringVar(&memory, "memory", "", "memory limit, e.g. 512Mi")
 	f.StringVar(&cpuReq, "cpu-request", "", "CPU request (defaults to limit)")
@@ -309,7 +309,163 @@ exit code, like docker run.`,
 	f.BoolVarP(&tty, "tty", "t", false, "allocate a pseudo-terminal")
 	f.BoolVarP(&detach, "detach", "d", false, "start in the background and print the ID")
 	f.Int32Var(&priority, "priority", 0, "advisory priority for the policy")
-	_ = cmd.MarkFlagRequired("image")
+	return cmd
+}
+
+// createAndRun creates a sandbox and starts it, attached unless detach.
+func createAndRun(ctx context.Context, name string, spec *pb.SandboxSpec, detach, stdin, tty bool) error {
+	created, err := api.Sandboxes.CreateSandbox(ctx, &pb.CreateSandboxRequest{Name: name, Spec: spec})
+	if err != nil {
+		return err
+	}
+	sb := created.GetSandbox()
+	if sb.GetStatus().GetPhase() == pb.Phase_PHASE_QUEUED {
+		fmt.Fprintf(os.Stderr, "sandbox %s queued by policy; it will start when dispatched\n", sb.GetId())
+		_, err := api.Sandboxes.StartSandbox(ctx, &pb.StartSandboxRequest{Sandbox: sb.GetId()})
+		if err != nil {
+			return err
+		}
+		fmt.Println(sb.GetId())
+		return nil
+	}
+	if detach {
+		if _, err := api.Sandboxes.StartSandbox(ctx, &pb.StartSandboxRequest{Sandbox: sb.GetId()}); err != nil {
+			return err
+		}
+		fmt.Println(sb.GetId())
+		return nil
+	}
+	return runAttached(ctx, sb.GetId(), stdin, tty, true)
+}
+
+func forkCmd() *cobra.Command {
+	var (
+		count int32
+		names []string
+	)
+	cmd := &cobra.Command{
+		Use:   "fork SANDBOX",
+		Short: "Make running copies of a running sandbox",
+		Long: `Make running copies of a running sandbox.
+
+A copy has the sandbox's processes, memory and filesystem as they were at the
+moment of the fork and continues from there, with its own ID, network address
+and writable filesystem layer. The sandbox itself keeps running. The copies
+share the sandbox's memory at that moment and each owns only the pages it
+writes afterwards, so a copy of a large sandbox costs about a megabyte.
+
+To make copies later, or of a sandbox that will be gone by then, take a
+snapshot (tidelet snapshot create) and run sandboxes from it (tidelet run
+--snapshot).`,
+		Example: `  tidelet fork agent
+  tidelet fork agent -n 10
+  tidelet fork agent --name left --name right`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resp, err := api.Sandboxes.ForkSandbox(cmd.Context(), &pb.ForkSandboxRequest{Sandbox: args[0], Count: count, Names: names})
+			if err != nil {
+				return err
+			}
+			if jsonOut {
+				return printJSON(resp)
+			}
+			for _, sb := range resp.GetSandboxes() {
+				fmt.Println(sb.GetId())
+			}
+			return nil
+		},
+	}
+	cmd.Flags().Int32VarP(&count, "count", "n", 0, "number of copies (default: one per --name, or 1)")
+	cmd.Flags().StringArrayVar(&names, "name", nil, "name of a copy (repeatable)")
+	return cmd
+}
+
+func snapshotCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "snapshot",
+		Aliases: []string{"snapshots", "snap"},
+		Short:   "Manage snapshots of running sandboxes",
+		Long: `Manage snapshots of running sandboxes.
+
+A snapshot is a running sandbox at one instant: its processes, memory and
+filesystem. Taking one pauses the sandbox briefly and leaves it running.
+"tidelet run --snapshot" creates a sandbox that continues from the snapshot;
+all sandboxes created from one snapshot share its memory copy-on-write.
+Snapshots are kept in memory and do not survive a reboot.`,
+	}
+	var name string
+	create := &cobra.Command{
+		Use:     "create SANDBOX",
+		Short:   "Snapshot a running sandbox",
+		Example: `  tidelet snapshot create agent --name warm`,
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resp, err := api.Snapshots.CreateSnapshot(cmd.Context(), &pb.CreateSnapshotRequest{Sandbox: args[0], Name: name})
+			if err != nil {
+				return err
+			}
+			if jsonOut {
+				return printJSON(resp)
+			}
+			fmt.Println(resp.GetSnapshot().GetId())
+			return nil
+		},
+	}
+	create.Flags().StringVar(&name, "name", "", "snapshot name (unique)")
+	ls := &cobra.Command{
+		Use:     "ls",
+		Aliases: []string{"list"},
+		Short:   "List snapshots",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			resp, err := api.Snapshots.ListSnapshots(cmd.Context(), &pb.ListSnapshotsRequest{})
+			if err != nil {
+				return err
+			}
+			if jsonOut {
+				return printJSON(resp)
+			}
+			tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			_, _ = fmt.Fprintln(tw, "ID\tNAME\tSANDBOX\tSHARED\tPRIVATE\tSANDBOXES\tTOOK\tCREATED")
+			for _, s := range resp.GetSnapshots() {
+				from := s.GetSandboxName()
+				if from == "" {
+					from = s.GetSandbox()[:min(12, len(s.GetSandbox()))]
+				}
+				_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%d\t%s\t%s\n", s.GetId()[:12], s.GetName(), from,
+					humanBytes(s.GetSharedBytes()), humanBytes(s.GetPrivateBytes()), s.GetSandboxes(),
+					time.Duration(s.GetTookSeconds()*float64(time.Second)).Round(time.Millisecond), ago(s.GetCreatedAt().AsTime()))
+			}
+			return tw.Flush()
+		},
+	}
+	inspect := &cobra.Command{
+		Use:   "inspect SNAPSHOT",
+		Short: "Show a snapshot as JSON",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resp, err := api.Snapshots.GetSnapshot(cmd.Context(), &pb.GetSnapshotRequest{Snapshot: args[0]})
+			if err != nil {
+				return err
+			}
+			return printJSON(resp.GetSnapshot())
+		},
+	}
+	rm := &cobra.Command{
+		Use:     "rm SNAPSHOT...",
+		Aliases: []string{"delete", "remove"},
+		Short:   "Delete snapshots (those with no sandboxes left)",
+		Args:    cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			for _, ref := range args {
+				if _, err := api.Snapshots.DeleteSnapshot(cmd.Context(), &pb.DeleteSnapshotRequest{Snapshot: ref}); err != nil {
+					return err
+				}
+				fmt.Println(ref)
+			}
+			return nil
+		},
+	}
+	cmd.AddCommand(create, ls, inspect, rm)
 	return cmd
 }
 

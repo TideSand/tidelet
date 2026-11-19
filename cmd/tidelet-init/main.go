@@ -44,8 +44,22 @@ type request struct {
 	Stderr string   `json:"stderr"`
 }
 
+// overcommitFile holds "2"; bound over /proc/sys/vm/overcommit_memory it makes glibc give
+// heap memory back with mmap instead of MADV_DONTNEED, which a sandbox whose memory is a
+// private file mapping (one created from a snapshot) needs: there MADV_DONTNEED brings
+// the snapshot's bytes back, not zeros.
+const overcommitFile = "/.tidelet/mem/.overcommit"
+
 func main() {
 	args := os.Args[1:]
+	if len(args) == 1 && args[0] == "--bind-overcommit" {
+		// Run by tideletd inside a new sandbox's mount namespace, before its command starts.
+		if err := syscall.Mount(overcommitFile, "/proc/sys/vm/overcommit_memory", "", syscall.MS_BIND, ""); err != nil {
+			fmt.Fprintln(os.Stderr, "tidelet-init: bind overcommit_memory:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(args) > 0 && args[0] == "--" {
 		args = args[1:]
 	}

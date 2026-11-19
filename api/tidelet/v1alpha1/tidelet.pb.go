@@ -523,7 +523,13 @@ type SandboxSpec struct {
 	// NETWORK_MODE_JOIN (see SandboxStatus.network.namespace_path).
 	NetworkNamespace string `protobuf:"bytes,14,opt,name=network_namespace,json=networkNamespace,proto3" json:"network_namespace,omitempty"`
 	// Hostname inside the sandbox. Defaults to the sandbox name or ID.
-	Hostname      string `protobuf:"bytes,15,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	Hostname string `protobuf:"bytes,15,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	// Snapshot ID, name, or unique ID prefix. When set, the sandbox is created
+	// as a copy of the snapshotted sandbox instead of running an image's
+	// command: its processes continue from the snapshot. Only resources,
+	// labels, priority and hostname may be given with it; everything else is
+	// the snapshot's.
+	Snapshot      string `protobuf:"bytes,16,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -659,6 +665,13 @@ func (x *SandboxSpec) GetNetworkNamespace() string {
 func (x *SandboxSpec) GetHostname() string {
 	if x != nil {
 		return x.Hostname
+	}
+	return ""
+}
+
+func (x *SandboxSpec) GetSnapshot() string {
+	if x != nil {
+		return x.Snapshot
 	}
 	return ""
 }
@@ -1437,6 +1450,590 @@ func (*DeleteSandboxResponse) Descriptor() ([]byte, []int) {
 	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{18}
 }
 
+type ForkSandboxRequest struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Sandbox string                 `protobuf:"bytes,1,opt,name=sandbox,proto3" json:"sandbox,omitempty"`
+	// How many copies to make. Defaults to the number of names, or 1.
+	Count int32 `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
+	// Optional names for the copies, in order.
+	Names         []string `protobuf:"bytes,3,rep,name=names,proto3" json:"names,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ForkSandboxRequest) Reset() {
+	*x = ForkSandboxRequest{}
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ForkSandboxRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ForkSandboxRequest) ProtoMessage() {}
+
+func (x *ForkSandboxRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ForkSandboxRequest.ProtoReflect.Descriptor instead.
+func (*ForkSandboxRequest) Descriptor() ([]byte, []int) {
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ForkSandboxRequest) GetSandbox() string {
+	if x != nil {
+		return x.Sandbox
+	}
+	return ""
+}
+
+func (x *ForkSandboxRequest) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+func (x *ForkSandboxRequest) GetNames() []string {
+	if x != nil {
+		return x.Names
+	}
+	return nil
+}
+
+type ForkSandboxResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sandboxes     []*Sandbox             `protobuf:"bytes,1,rep,name=sandboxes,proto3" json:"sandboxes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ForkSandboxResponse) Reset() {
+	*x = ForkSandboxResponse{}
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ForkSandboxResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ForkSandboxResponse) ProtoMessage() {}
+
+func (x *ForkSandboxResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ForkSandboxResponse.ProtoReflect.Descriptor instead.
+func (*ForkSandboxResponse) Descriptor() ([]byte, []int) {
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ForkSandboxResponse) GetSandboxes() []*Sandbox {
+	if x != nil {
+		return x.Sandboxes
+	}
+	return nil
+}
+
+type Snapshot struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// ID and name of the sandbox the snapshot was taken of.
+	Sandbox     string                 `protobuf:"bytes,3,opt,name=sandbox,proto3" json:"sandbox,omitempty"`
+	SandboxName string                 `protobuf:"bytes,4,opt,name=sandbox_name,json=sandboxName,proto3" json:"sandbox_name,omitempty"`
+	CreatedAt   *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// The snapshotted sandbox's spec, with the resources it was granted.
+	Spec *SandboxSpec `protobuf:"bytes,6,opt,name=spec,proto3" json:"spec,omitempty"`
+	// Memory every sandbox created from the snapshot shares.
+	SharedBytes uint64 `protobuf:"varint,7,opt,name=shared_bytes,json=sharedBytes,proto3" json:"shared_bytes,omitempty"`
+	// Memory each sandbox created from the snapshot gets a copy of.
+	PrivateBytes uint64 `protobuf:"varint,8,opt,name=private_bytes,json=privateBytes,proto3" json:"private_bytes,omitempty"`
+	// Seconds taking the snapshot took.
+	TookSeconds float64 `protobuf:"fixed64,9,opt,name=took_seconds,json=tookSeconds,proto3" json:"took_seconds,omitempty"`
+	// Deleted with the last sandbox created from it.
+	Ephemeral bool `protobuf:"varint,10,opt,name=ephemeral,proto3" json:"ephemeral,omitempty"`
+	// Sandboxes created from the snapshot that exist now.
+	Sandboxes     int32 `protobuf:"varint,11,opt,name=sandboxes,proto3" json:"sandboxes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Snapshot) Reset() {
+	*x = Snapshot{}
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Snapshot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Snapshot) ProtoMessage() {}
+
+func (x *Snapshot) ProtoReflect() protoreflect.Message {
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Snapshot.ProtoReflect.Descriptor instead.
+func (*Snapshot) Descriptor() ([]byte, []int) {
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *Snapshot) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Snapshot) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Snapshot) GetSandbox() string {
+	if x != nil {
+		return x.Sandbox
+	}
+	return ""
+}
+
+func (x *Snapshot) GetSandboxName() string {
+	if x != nil {
+		return x.SandboxName
+	}
+	return ""
+}
+
+func (x *Snapshot) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *Snapshot) GetSpec() *SandboxSpec {
+	if x != nil {
+		return x.Spec
+	}
+	return nil
+}
+
+func (x *Snapshot) GetSharedBytes() uint64 {
+	if x != nil {
+		return x.SharedBytes
+	}
+	return 0
+}
+
+func (x *Snapshot) GetPrivateBytes() uint64 {
+	if x != nil {
+		return x.PrivateBytes
+	}
+	return 0
+}
+
+func (x *Snapshot) GetTookSeconds() float64 {
+	if x != nil {
+		return x.TookSeconds
+	}
+	return 0
+}
+
+func (x *Snapshot) GetEphemeral() bool {
+	if x != nil {
+		return x.Ephemeral
+	}
+	return false
+}
+
+func (x *Snapshot) GetSandboxes() int32 {
+	if x != nil {
+		return x.Sandboxes
+	}
+	return 0
+}
+
+type CreateSnapshotRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The running sandbox to snapshot.
+	Sandbox string `protobuf:"bytes,1,opt,name=sandbox,proto3" json:"sandbox,omitempty"`
+	// Optional unique name.
+	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateSnapshotRequest) Reset() {
+	*x = CreateSnapshotRequest{}
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateSnapshotRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateSnapshotRequest) ProtoMessage() {}
+
+func (x *CreateSnapshotRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateSnapshotRequest.ProtoReflect.Descriptor instead.
+func (*CreateSnapshotRequest) Descriptor() ([]byte, []int) {
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *CreateSnapshotRequest) GetSandbox() string {
+	if x != nil {
+		return x.Sandbox
+	}
+	return ""
+}
+
+func (x *CreateSnapshotRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type CreateSnapshotResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Snapshot      *Snapshot              `protobuf:"bytes,1,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateSnapshotResponse) Reset() {
+	*x = CreateSnapshotResponse{}
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateSnapshotResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateSnapshotResponse) ProtoMessage() {}
+
+func (x *CreateSnapshotResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateSnapshotResponse.ProtoReflect.Descriptor instead.
+func (*CreateSnapshotResponse) Descriptor() ([]byte, []int) {
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *CreateSnapshotResponse) GetSnapshot() *Snapshot {
+	if x != nil {
+		return x.Snapshot
+	}
+	return nil
+}
+
+type GetSnapshotRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Snapshot ID, name, or unique ID prefix.
+	Snapshot      string `protobuf:"bytes,1,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSnapshotRequest) Reset() {
+	*x = GetSnapshotRequest{}
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSnapshotRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSnapshotRequest) ProtoMessage() {}
+
+func (x *GetSnapshotRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSnapshotRequest.ProtoReflect.Descriptor instead.
+func (*GetSnapshotRequest) Descriptor() ([]byte, []int) {
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *GetSnapshotRequest) GetSnapshot() string {
+	if x != nil {
+		return x.Snapshot
+	}
+	return ""
+}
+
+type GetSnapshotResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Snapshot      *Snapshot              `protobuf:"bytes,1,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSnapshotResponse) Reset() {
+	*x = GetSnapshotResponse{}
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSnapshotResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSnapshotResponse) ProtoMessage() {}
+
+func (x *GetSnapshotResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSnapshotResponse.ProtoReflect.Descriptor instead.
+func (*GetSnapshotResponse) Descriptor() ([]byte, []int) {
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *GetSnapshotResponse) GetSnapshot() *Snapshot {
+	if x != nil {
+		return x.Snapshot
+	}
+	return nil
+}
+
+type ListSnapshotsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSnapshotsRequest) Reset() {
+	*x = ListSnapshotsRequest{}
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSnapshotsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSnapshotsRequest) ProtoMessage() {}
+
+func (x *ListSnapshotsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSnapshotsRequest.ProtoReflect.Descriptor instead.
+func (*ListSnapshotsRequest) Descriptor() ([]byte, []int) {
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{26}
+}
+
+type ListSnapshotsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Snapshots     []*Snapshot            `protobuf:"bytes,1,rep,name=snapshots,proto3" json:"snapshots,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSnapshotsResponse) Reset() {
+	*x = ListSnapshotsResponse{}
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSnapshotsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSnapshotsResponse) ProtoMessage() {}
+
+func (x *ListSnapshotsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSnapshotsResponse.ProtoReflect.Descriptor instead.
+func (*ListSnapshotsResponse) Descriptor() ([]byte, []int) {
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ListSnapshotsResponse) GetSnapshots() []*Snapshot {
+	if x != nil {
+		return x.Snapshots
+	}
+	return nil
+}
+
+type DeleteSnapshotRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Snapshot      string                 `protobuf:"bytes,1,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteSnapshotRequest) Reset() {
+	*x = DeleteSnapshotRequest{}
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteSnapshotRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteSnapshotRequest) ProtoMessage() {}
+
+func (x *DeleteSnapshotRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteSnapshotRequest.ProtoReflect.Descriptor instead.
+func (*DeleteSnapshotRequest) Descriptor() ([]byte, []int) {
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *DeleteSnapshotRequest) GetSnapshot() string {
+	if x != nil {
+		return x.Snapshot
+	}
+	return ""
+}
+
+type DeleteSnapshotResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteSnapshotResponse) Reset() {
+	*x = DeleteSnapshotResponse{}
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteSnapshotResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteSnapshotResponse) ProtoMessage() {}
+
+func (x *DeleteSnapshotResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteSnapshotResponse.ProtoReflect.Descriptor instead.
+func (*DeleteSnapshotResponse) Descriptor() ([]byte, []int) {
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{29}
+}
+
 type TerminalSize struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Width         uint32                 `protobuf:"varint,1,opt,name=width,proto3" json:"width,omitempty"`
@@ -1447,7 +2044,7 @@ type TerminalSize struct {
 
 func (x *TerminalSize) Reset() {
 	*x = TerminalSize{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[19]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1459,7 +2056,7 @@ func (x *TerminalSize) String() string {
 func (*TerminalSize) ProtoMessage() {}
 
 func (x *TerminalSize) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[19]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1472,7 +2069,7 @@ func (x *TerminalSize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalSize.ProtoReflect.Descriptor instead.
 func (*TerminalSize) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{19}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *TerminalSize) GetWidth() uint32 {
@@ -1506,7 +2103,7 @@ type ExecStart struct {
 
 func (x *ExecStart) Reset() {
 	*x = ExecStart{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[20]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1518,7 +2115,7 @@ func (x *ExecStart) String() string {
 func (*ExecStart) ProtoMessage() {}
 
 func (x *ExecStart) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[20]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1531,7 +2128,7 @@ func (x *ExecStart) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecStart.ProtoReflect.Descriptor instead.
 func (*ExecStart) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{20}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ExecStart) GetSandbox() string {
@@ -1598,7 +2195,7 @@ type ExecRequest struct {
 
 func (x *ExecRequest) Reset() {
 	*x = ExecRequest{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[21]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1610,7 +2207,7 @@ func (x *ExecRequest) String() string {
 func (*ExecRequest) ProtoMessage() {}
 
 func (x *ExecRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[21]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1623,7 +2220,7 @@ func (x *ExecRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecRequest.ProtoReflect.Descriptor instead.
 func (*ExecRequest) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{21}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ExecRequest) GetMsg() isExecRequest_Msg {
@@ -1706,7 +2303,7 @@ type Exit struct {
 
 func (x *Exit) Reset() {
 	*x = Exit{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[22]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1718,7 +2315,7 @@ func (x *Exit) String() string {
 func (*Exit) ProtoMessage() {}
 
 func (x *Exit) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[22]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1731,7 +2328,7 @@ func (x *Exit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Exit.ProtoReflect.Descriptor instead.
 func (*Exit) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{22}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *Exit) GetCode() int32 {
@@ -1755,7 +2352,7 @@ type ExecResponse struct {
 
 func (x *ExecResponse) Reset() {
 	*x = ExecResponse{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[23]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1767,7 +2364,7 @@ func (x *ExecResponse) String() string {
 func (*ExecResponse) ProtoMessage() {}
 
 func (x *ExecResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[23]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1780,7 +2377,7 @@ func (x *ExecResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecResponse.ProtoReflect.Descriptor instead.
 func (*ExecResponse) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{23}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ExecResponse) GetMsg() isExecResponse_Msg {
@@ -1852,7 +2449,7 @@ type AttachStart struct {
 
 func (x *AttachStart) Reset() {
 	*x = AttachStart{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[24]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1864,7 +2461,7 @@ func (x *AttachStart) String() string {
 func (*AttachStart) ProtoMessage() {}
 
 func (x *AttachStart) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[24]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1877,7 +2474,7 @@ func (x *AttachStart) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttachStart.ProtoReflect.Descriptor instead.
 func (*AttachStart) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{24}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *AttachStart) GetSandbox() string {
@@ -1916,7 +2513,7 @@ type AttachRequest struct {
 
 func (x *AttachRequest) Reset() {
 	*x = AttachRequest{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[25]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1928,7 +2525,7 @@ func (x *AttachRequest) String() string {
 func (*AttachRequest) ProtoMessage() {}
 
 func (x *AttachRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[25]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1941,7 +2538,7 @@ func (x *AttachRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttachRequest.ProtoReflect.Descriptor instead.
 func (*AttachRequest) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{25}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *AttachRequest) GetMsg() isAttachRequest_Msg {
@@ -2023,7 +2620,7 @@ type Attached struct {
 
 func (x *Attached) Reset() {
 	*x = Attached{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[26]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2035,7 +2632,7 @@ func (x *Attached) String() string {
 func (*Attached) ProtoMessage() {}
 
 func (x *Attached) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[26]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2048,7 +2645,7 @@ func (x *Attached) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Attached.ProtoReflect.Descriptor instead.
 func (*Attached) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{26}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{37}
 }
 
 type AttachResponse struct {
@@ -2066,7 +2663,7 @@ type AttachResponse struct {
 
 func (x *AttachResponse) Reset() {
 	*x = AttachResponse{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[27]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2078,7 +2675,7 @@ func (x *AttachResponse) String() string {
 func (*AttachResponse) ProtoMessage() {}
 
 func (x *AttachResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[27]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2091,7 +2688,7 @@ func (x *AttachResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttachResponse.ProtoReflect.Descriptor instead.
 func (*AttachResponse) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{27}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *AttachResponse) GetMsg() isAttachResponse_Msg {
@@ -2182,7 +2779,7 @@ type LogsRequest struct {
 
 func (x *LogsRequest) Reset() {
 	*x = LogsRequest{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[28]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2194,7 +2791,7 @@ func (x *LogsRequest) String() string {
 func (*LogsRequest) ProtoMessage() {}
 
 func (x *LogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[28]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2207,7 +2804,7 @@ func (x *LogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogsRequest.ProtoReflect.Descriptor instead.
 func (*LogsRequest) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{28}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *LogsRequest) GetSandbox() string {
@@ -2249,7 +2846,7 @@ type LogsResponse struct {
 
 func (x *LogsResponse) Reset() {
 	*x = LogsResponse{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[29]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2261,7 +2858,7 @@ func (x *LogsResponse) String() string {
 func (*LogsResponse) ProtoMessage() {}
 
 func (x *LogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[29]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2274,7 +2871,7 @@ func (x *LogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogsResponse.ProtoReflect.Descriptor instead.
 func (*LogsResponse) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{29}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *LogsResponse) GetStream() LogStream {
@@ -2307,7 +2904,7 @@ type GetStatsRequest struct {
 
 func (x *GetStatsRequest) Reset() {
 	*x = GetStatsRequest{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[30]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2319,7 +2916,7 @@ func (x *GetStatsRequest) String() string {
 func (*GetStatsRequest) ProtoMessage() {}
 
 func (x *GetStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[30]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2332,7 +2929,7 @@ func (x *GetStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStatsRequest.ProtoReflect.Descriptor instead.
 func (*GetStatsRequest) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{30}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *GetStatsRequest) GetSandbox() string {
@@ -2362,7 +2959,7 @@ type Stats struct {
 
 func (x *Stats) Reset() {
 	*x = Stats{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[31]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2374,7 +2971,7 @@ func (x *Stats) String() string {
 func (*Stats) ProtoMessage() {}
 
 func (x *Stats) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[31]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2387,7 +2984,7 @@ func (x *Stats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Stats.ProtoReflect.Descriptor instead.
 func (*Stats) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{31}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *Stats) GetTimestamp() *timestamppb.Timestamp {
@@ -2455,7 +3052,7 @@ type GetStatsResponse struct {
 
 func (x *GetStatsResponse) Reset() {
 	*x = GetStatsResponse{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[32]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2467,7 +3064,7 @@ func (x *GetStatsResponse) String() string {
 func (*GetStatsResponse) ProtoMessage() {}
 
 func (x *GetStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[32]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2480,7 +3077,7 @@ func (x *GetStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStatsResponse.ProtoReflect.Descriptor instead.
 func (*GetStatsResponse) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{32}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *GetStatsResponse) GetStats() *Stats {
@@ -2498,7 +3095,7 @@ type WatchRequest struct {
 
 func (x *WatchRequest) Reset() {
 	*x = WatchRequest{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[33]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2510,7 +3107,7 @@ func (x *WatchRequest) String() string {
 func (*WatchRequest) ProtoMessage() {}
 
 func (x *WatchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[33]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2523,7 +3120,7 @@ func (x *WatchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchRequest.ProtoReflect.Descriptor instead.
 func (*WatchRequest) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{33}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{44}
 }
 
 type WatchResponse struct {
@@ -2537,7 +3134,7 @@ type WatchResponse struct {
 
 func (x *WatchResponse) Reset() {
 	*x = WatchResponse{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[34]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2549,7 +3146,7 @@ func (x *WatchResponse) String() string {
 func (*WatchResponse) ProtoMessage() {}
 
 func (x *WatchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[34]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2562,7 +3159,7 @@ func (x *WatchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchResponse.ProtoReflect.Descriptor instead.
 func (*WatchResponse) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{34}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *WatchResponse) GetType() EventType {
@@ -2594,7 +3191,7 @@ type GetNodeRequest struct {
 
 func (x *GetNodeRequest) Reset() {
 	*x = GetNodeRequest{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[35]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2606,7 +3203,7 @@ func (x *GetNodeRequest) String() string {
 func (*GetNodeRequest) ProtoMessage() {}
 
 func (x *GetNodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[35]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2619,7 +3216,7 @@ func (x *GetNodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeRequest.ProtoReflect.Descriptor instead.
 func (*GetNodeRequest) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{35}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{46}
 }
 
 type NodeStatus struct {
@@ -2641,7 +3238,7 @@ type NodeStatus struct {
 
 func (x *NodeStatus) Reset() {
 	*x = NodeStatus{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[36]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2653,7 +3250,7 @@ func (x *NodeStatus) String() string {
 func (*NodeStatus) ProtoMessage() {}
 
 func (x *NodeStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[36]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2666,7 +3263,7 @@ func (x *NodeStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeStatus.ProtoReflect.Descriptor instead.
 func (*NodeStatus) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{36}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *NodeStatus) GetPolicy() string {
@@ -2727,7 +3324,7 @@ type GetNodeResponse struct {
 
 func (x *GetNodeResponse) Reset() {
 	*x = GetNodeResponse{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[37]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2739,7 +3336,7 @@ func (x *GetNodeResponse) String() string {
 func (*GetNodeResponse) ProtoMessage() {}
 
 func (x *GetNodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[37]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2752,7 +3349,7 @@ func (x *GetNodeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodeResponse.ProtoReflect.Descriptor instead.
 func (*GetNodeResponse) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{37}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *GetNodeResponse) GetNode() *NodeStatus {
@@ -2770,7 +3367,7 @@ type GetVersionRequest struct {
 
 func (x *GetVersionRequest) Reset() {
 	*x = GetVersionRequest{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[38]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2782,7 +3379,7 @@ func (x *GetVersionRequest) String() string {
 func (*GetVersionRequest) ProtoMessage() {}
 
 func (x *GetVersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[38]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2795,7 +3392,7 @@ func (x *GetVersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetVersionRequest.ProtoReflect.Descriptor instead.
 func (*GetVersionRequest) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{38}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{49}
 }
 
 type GetVersionResponse struct {
@@ -2807,7 +3404,7 @@ type GetVersionResponse struct {
 
 func (x *GetVersionResponse) Reset() {
 	*x = GetVersionResponse{}
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[39]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2819,7 +3416,7 @@ func (x *GetVersionResponse) String() string {
 func (*GetVersionResponse) ProtoMessage() {}
 
 func (x *GetVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[39]
+	mi := &file_tidelet_v1alpha1_tidelet_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2832,7 +3429,7 @@ func (x *GetVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetVersionResponse.ProtoReflect.Descriptor instead.
 func (*GetVersionResponse) Descriptor() ([]byte, []int) {
-	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{39}
+	return file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *GetVersionResponse) GetVersion() string {
@@ -2856,7 +3453,7 @@ const file_tidelet_v1alpha1_tidelet_proto_rawDesc = "" +
 	"\x05Mount\x12\x1b\n" +
 	"\thost_path\x18\x01 \x01(\tR\bhostPath\x12%\n" +
 	"\x0econtainer_path\x18\x02 \x01(\tR\rcontainerPath\x12\x1b\n" +
-	"\tread_only\x18\x03 \x01(\bR\breadOnly\"\xce\x05\n" +
+	"\tread_only\x18\x03 \x01(\bR\breadOnly\"\xea\x05\n" +
 	"\vSandboxSpec\x12\x14\n" +
 	"\x05image\x18\x01 \x01(\tR\x05image\x12\x18\n" +
 	"\acommand\x18\x02 \x03(\tR\acommand\x12\x12\n" +
@@ -2874,7 +3471,8 @@ const file_tidelet_v1alpha1_tidelet_proto_rawDesc = "" +
 	"\x03tty\x18\f \x01(\bR\x03tty\x12\x1a\n" +
 	"\bpriority\x18\r \x01(\x05R\bpriority\x12+\n" +
 	"\x11network_namespace\x18\x0e \x01(\tR\x10networkNamespace\x12\x1a\n" +
-	"\bhostname\x18\x0f \x01(\tR\bhostname\x1a6\n" +
+	"\bhostname\x18\x0f \x01(\tR\bhostname\x12\x1a\n" +
+	"\bsnapshot\x18\x10 \x01(\tR\bsnapshot\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +
@@ -2928,7 +3526,42 @@ const file_tidelet_v1alpha1_tidelet_proto_rawDesc = "" +
 	"\x14DeleteSandboxRequest\x12\x18\n" +
 	"\asandbox\x18\x01 \x01(\tR\asandbox\x12\x14\n" +
 	"\x05force\x18\x02 \x01(\bR\x05force\"\x17\n" +
-	"\x15DeleteSandboxResponse\"<\n" +
+	"\x15DeleteSandboxResponse\"Z\n" +
+	"\x12ForkSandboxRequest\x12\x18\n" +
+	"\asandbox\x18\x01 \x01(\tR\asandbox\x12\x14\n" +
+	"\x05count\x18\x02 \x01(\x05R\x05count\x12\x14\n" +
+	"\x05names\x18\x03 \x03(\tR\x05names\"N\n" +
+	"\x13ForkSandboxResponse\x127\n" +
+	"\tsandboxes\x18\x01 \x03(\v2\x19.tidelet.v1alpha1.SandboxR\tsandboxes\"\x80\x03\n" +
+	"\bSnapshot\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
+	"\asandbox\x18\x03 \x01(\tR\asandbox\x12!\n" +
+	"\fsandbox_name\x18\x04 \x01(\tR\vsandboxName\x129\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x121\n" +
+	"\x04spec\x18\x06 \x01(\v2\x1d.tidelet.v1alpha1.SandboxSpecR\x04spec\x12!\n" +
+	"\fshared_bytes\x18\a \x01(\x04R\vsharedBytes\x12#\n" +
+	"\rprivate_bytes\x18\b \x01(\x04R\fprivateBytes\x12!\n" +
+	"\ftook_seconds\x18\t \x01(\x01R\vtookSeconds\x12\x1c\n" +
+	"\tephemeral\x18\n" +
+	" \x01(\bR\tephemeral\x12\x1c\n" +
+	"\tsandboxes\x18\v \x01(\x05R\tsandboxes\"E\n" +
+	"\x15CreateSnapshotRequest\x12\x18\n" +
+	"\asandbox\x18\x01 \x01(\tR\asandbox\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"P\n" +
+	"\x16CreateSnapshotResponse\x126\n" +
+	"\bsnapshot\x18\x01 \x01(\v2\x1a.tidelet.v1alpha1.SnapshotR\bsnapshot\"0\n" +
+	"\x12GetSnapshotRequest\x12\x1a\n" +
+	"\bsnapshot\x18\x01 \x01(\tR\bsnapshot\"M\n" +
+	"\x13GetSnapshotResponse\x126\n" +
+	"\bsnapshot\x18\x01 \x01(\v2\x1a.tidelet.v1alpha1.SnapshotR\bsnapshot\"\x16\n" +
+	"\x14ListSnapshotsRequest\"Q\n" +
+	"\x15ListSnapshotsResponse\x128\n" +
+	"\tsnapshots\x18\x01 \x03(\v2\x1a.tidelet.v1alpha1.SnapshotR\tsnapshots\"3\n" +
+	"\x15DeleteSnapshotRequest\x12\x1a\n" +
+	"\bsnapshot\x18\x01 \x01(\tR\bsnapshot\"\x18\n" +
+	"\x16DeleteSnapshotResponse\"<\n" +
 	"\fTerminalSize\x12\x14\n" +
 	"\x05width\x18\x01 \x01(\rR\x05width\x12\x16\n" +
 	"\x06height\x18\x02 \x01(\rR\x06height\"\xbd\x02\n" +
@@ -3052,8 +3685,7 @@ const file_tidelet_v1alpha1_tidelet_proto_rawDesc = "" +
 	"\x11EVENT_TYPE_THAWED\x10\x05\x12\x15\n" +
 	"\x11EVENT_TYPE_EXITED\x10\x06\x12\x15\n" +
 	"\x11EVENT_TYPE_FAILED\x10\a\x12\x16\n" +
-	"\x12EVENT_TYPE_DELETED\x10\b2\xac\n" +
-	"\n" +
+	"\x12EVENT_TYPE_DELETED\x10\b2\xb8\v\n" +
 	"\x0eSandboxService\x12\x80\x01\n" +
 	"\rCreateSandbox\x12&.tidelet.v1alpha1.CreateSandboxRequest\x1a'.tidelet.v1alpha1.CreateSandboxResponse\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1alpha1/sandboxes\x12\x8a\x01\n" +
 	"\fStartSandbox\x12%.tidelet.v1alpha1.StartSandboxRequest\x1a&.tidelet.v1alpha1.StartSandboxResponse\"+\x82\xd3\xe4\x93\x02%\"#/v1alpha1/sandboxes/{sandbox}:start\x12~\n" +
@@ -3061,12 +3693,18 @@ const file_tidelet_v1alpha1_tidelet_proto_rawDesc = "" +
 	"GetSandbox\x12#.tidelet.v1alpha1.GetSandboxRequest\x1a$.tidelet.v1alpha1.GetSandboxResponse\"%\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v1alpha1/sandboxes/{sandbox}\x12}\n" +
 	"\rListSandboxes\x12&.tidelet.v1alpha1.ListSandboxesRequest\x1a'.tidelet.v1alpha1.ListSandboxesResponse\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/v1alpha1/sandboxes\x12\x89\x01\n" +
 	"\vStopSandbox\x12$.tidelet.v1alpha1.StopSandboxRequest\x1a%.tidelet.v1alpha1.StopSandboxResponse\"-\x82\xd3\xe4\x93\x02':\x01*\"\"/v1alpha1/sandboxes/{sandbox}:stop\x12\x87\x01\n" +
-	"\rDeleteSandbox\x12&.tidelet.v1alpha1.DeleteSandboxRequest\x1a'.tidelet.v1alpha1.DeleteSandboxResponse\"%\x82\xd3\xe4\x93\x02\x1f*\x1d/v1alpha1/sandboxes/{sandbox}\x12I\n" +
+	"\rDeleteSandbox\x12&.tidelet.v1alpha1.DeleteSandboxRequest\x1a'.tidelet.v1alpha1.DeleteSandboxResponse\"%\x82\xd3\xe4\x93\x02\x1f*\x1d/v1alpha1/sandboxes/{sandbox}\x12\x89\x01\n" +
+	"\vForkSandbox\x12$.tidelet.v1alpha1.ForkSandboxRequest\x1a%.tidelet.v1alpha1.ForkSandboxResponse\"-\x82\xd3\xe4\x93\x02':\x01*\"\"/v1alpha1/sandboxes/{sandbox}:fork\x12I\n" +
 	"\x04Exec\x12\x1d.tidelet.v1alpha1.ExecRequest\x1a\x1e.tidelet.v1alpha1.ExecResponse(\x010\x01\x12O\n" +
 	"\x06Attach\x12\x1f.tidelet.v1alpha1.AttachRequest\x1a .tidelet.v1alpha1.AttachResponse(\x010\x01\x12s\n" +
 	"\x04Logs\x12\x1d.tidelet.v1alpha1.LogsRequest\x1a\x1e.tidelet.v1alpha1.LogsResponse\"*\x82\xd3\xe4\x93\x02$\x12\"/v1alpha1/sandboxes/{sandbox}/logs0\x01\x12~\n" +
 	"\bGetStats\x12!.tidelet.v1alpha1.GetStatsRequest\x1a\".tidelet.v1alpha1.GetStatsResponse\"+\x82\xd3\xe4\x93\x02%\x12#/v1alpha1/sandboxes/{sandbox}/stats\x12d\n" +
-	"\x05Watch\x12\x1e.tidelet.v1alpha1.WatchRequest\x1a\x1f.tidelet.v1alpha1.WatchResponse\"\x18\x82\xd3\xe4\x93\x02\x12\x12\x10/v1alpha1/events0\x012\xe9\x01\n" +
+	"\x05Watch\x12\x1e.tidelet.v1alpha1.WatchRequest\x1a\x1f.tidelet.v1alpha1.WatchResponse\"\x18\x82\xd3\xe4\x93\x02\x12\x12\x10/v1alpha1/events0\x012\xa9\x04\n" +
+	"\x0fSnapshotService\x12\x83\x01\n" +
+	"\x0eCreateSnapshot\x12'.tidelet.v1alpha1.CreateSnapshotRequest\x1a(.tidelet.v1alpha1.CreateSnapshotResponse\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1alpha1/snapshots\x12\x82\x01\n" +
+	"\vGetSnapshot\x12$.tidelet.v1alpha1.GetSnapshotRequest\x1a%.tidelet.v1alpha1.GetSnapshotResponse\"&\x82\xd3\xe4\x93\x02 \x12\x1e/v1alpha1/snapshots/{snapshot}\x12}\n" +
+	"\rListSnapshots\x12&.tidelet.v1alpha1.ListSnapshotsRequest\x1a'.tidelet.v1alpha1.ListSnapshotsResponse\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/v1alpha1/snapshots\x12\x8b\x01\n" +
+	"\x0eDeleteSnapshot\x12'.tidelet.v1alpha1.DeleteSnapshotRequest\x1a(.tidelet.v1alpha1.DeleteSnapshotResponse\"&\x82\xd3\xe4\x93\x02 *\x1e/v1alpha1/snapshots/{snapshot}2\xe9\x01\n" +
 	"\vNodeService\x12f\n" +
 	"\aGetNode\x12 .tidelet.v1alpha1.GetNodeRequest\x1a!.tidelet.v1alpha1.GetNodeResponse\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/v1alpha1/node\x12r\n" +
 	"\n" +
@@ -3086,73 +3724,84 @@ func file_tidelet_v1alpha1_tidelet_proto_rawDescGZIP() []byte {
 }
 
 var file_tidelet_v1alpha1_tidelet_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_tidelet_v1alpha1_tidelet_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
+var file_tidelet_v1alpha1_tidelet_proto_msgTypes = make([]protoimpl.MessageInfo, 54)
 var file_tidelet_v1alpha1_tidelet_proto_goTypes = []any{
-	(NetworkMode)(0),              // 0: tidelet.v1alpha1.NetworkMode
-	(RuntimeClass)(0),             // 1: tidelet.v1alpha1.RuntimeClass
-	(Phase)(0),                    // 2: tidelet.v1alpha1.Phase
-	(LogStream)(0),                // 3: tidelet.v1alpha1.LogStream
-	(EventType)(0),                // 4: tidelet.v1alpha1.EventType
-	(*ResourceList)(nil),          // 5: tidelet.v1alpha1.ResourceList
-	(*Resources)(nil),             // 6: tidelet.v1alpha1.Resources
-	(*Mount)(nil),                 // 7: tidelet.v1alpha1.Mount
-	(*SandboxSpec)(nil),           // 8: tidelet.v1alpha1.SandboxSpec
-	(*NetworkStatus)(nil),         // 9: tidelet.v1alpha1.NetworkStatus
-	(*SandboxStatus)(nil),         // 10: tidelet.v1alpha1.SandboxStatus
-	(*Sandbox)(nil),               // 11: tidelet.v1alpha1.Sandbox
-	(*CreateSandboxRequest)(nil),  // 12: tidelet.v1alpha1.CreateSandboxRequest
-	(*CreateSandboxResponse)(nil), // 13: tidelet.v1alpha1.CreateSandboxResponse
-	(*StartSandboxRequest)(nil),   // 14: tidelet.v1alpha1.StartSandboxRequest
-	(*StartSandboxResponse)(nil),  // 15: tidelet.v1alpha1.StartSandboxResponse
-	(*GetSandboxRequest)(nil),     // 16: tidelet.v1alpha1.GetSandboxRequest
-	(*GetSandboxResponse)(nil),    // 17: tidelet.v1alpha1.GetSandboxResponse
-	(*ListSandboxesRequest)(nil),  // 18: tidelet.v1alpha1.ListSandboxesRequest
-	(*ListSandboxesResponse)(nil), // 19: tidelet.v1alpha1.ListSandboxesResponse
-	(*StopSandboxRequest)(nil),    // 20: tidelet.v1alpha1.StopSandboxRequest
-	(*StopSandboxResponse)(nil),   // 21: tidelet.v1alpha1.StopSandboxResponse
-	(*DeleteSandboxRequest)(nil),  // 22: tidelet.v1alpha1.DeleteSandboxRequest
-	(*DeleteSandboxResponse)(nil), // 23: tidelet.v1alpha1.DeleteSandboxResponse
-	(*TerminalSize)(nil),          // 24: tidelet.v1alpha1.TerminalSize
-	(*ExecStart)(nil),             // 25: tidelet.v1alpha1.ExecStart
-	(*ExecRequest)(nil),           // 26: tidelet.v1alpha1.ExecRequest
-	(*Exit)(nil),                  // 27: tidelet.v1alpha1.Exit
-	(*ExecResponse)(nil),          // 28: tidelet.v1alpha1.ExecResponse
-	(*AttachStart)(nil),           // 29: tidelet.v1alpha1.AttachStart
-	(*AttachRequest)(nil),         // 30: tidelet.v1alpha1.AttachRequest
-	(*Attached)(nil),              // 31: tidelet.v1alpha1.Attached
-	(*AttachResponse)(nil),        // 32: tidelet.v1alpha1.AttachResponse
-	(*LogsRequest)(nil),           // 33: tidelet.v1alpha1.LogsRequest
-	(*LogsResponse)(nil),          // 34: tidelet.v1alpha1.LogsResponse
-	(*GetStatsRequest)(nil),       // 35: tidelet.v1alpha1.GetStatsRequest
-	(*Stats)(nil),                 // 36: tidelet.v1alpha1.Stats
-	(*GetStatsResponse)(nil),      // 37: tidelet.v1alpha1.GetStatsResponse
-	(*WatchRequest)(nil),          // 38: tidelet.v1alpha1.WatchRequest
-	(*WatchResponse)(nil),         // 39: tidelet.v1alpha1.WatchResponse
-	(*GetNodeRequest)(nil),        // 40: tidelet.v1alpha1.GetNodeRequest
-	(*NodeStatus)(nil),            // 41: tidelet.v1alpha1.NodeStatus
-	(*GetNodeResponse)(nil),       // 42: tidelet.v1alpha1.GetNodeResponse
-	(*GetVersionRequest)(nil),     // 43: tidelet.v1alpha1.GetVersionRequest
-	(*GetVersionResponse)(nil),    // 44: tidelet.v1alpha1.GetVersionResponse
-	nil,                           // 45: tidelet.v1alpha1.SandboxSpec.EnvEntry
-	nil,                           // 46: tidelet.v1alpha1.SandboxSpec.LabelsEntry
-	nil,                           // 47: tidelet.v1alpha1.ExecStart.EnvEntry
-	(*timestamppb.Timestamp)(nil), // 48: google.protobuf.Timestamp
+	(NetworkMode)(0),               // 0: tidelet.v1alpha1.NetworkMode
+	(RuntimeClass)(0),              // 1: tidelet.v1alpha1.RuntimeClass
+	(Phase)(0),                     // 2: tidelet.v1alpha1.Phase
+	(LogStream)(0),                 // 3: tidelet.v1alpha1.LogStream
+	(EventType)(0),                 // 4: tidelet.v1alpha1.EventType
+	(*ResourceList)(nil),           // 5: tidelet.v1alpha1.ResourceList
+	(*Resources)(nil),              // 6: tidelet.v1alpha1.Resources
+	(*Mount)(nil),                  // 7: tidelet.v1alpha1.Mount
+	(*SandboxSpec)(nil),            // 8: tidelet.v1alpha1.SandboxSpec
+	(*NetworkStatus)(nil),          // 9: tidelet.v1alpha1.NetworkStatus
+	(*SandboxStatus)(nil),          // 10: tidelet.v1alpha1.SandboxStatus
+	(*Sandbox)(nil),                // 11: tidelet.v1alpha1.Sandbox
+	(*CreateSandboxRequest)(nil),   // 12: tidelet.v1alpha1.CreateSandboxRequest
+	(*CreateSandboxResponse)(nil),  // 13: tidelet.v1alpha1.CreateSandboxResponse
+	(*StartSandboxRequest)(nil),    // 14: tidelet.v1alpha1.StartSandboxRequest
+	(*StartSandboxResponse)(nil),   // 15: tidelet.v1alpha1.StartSandboxResponse
+	(*GetSandboxRequest)(nil),      // 16: tidelet.v1alpha1.GetSandboxRequest
+	(*GetSandboxResponse)(nil),     // 17: tidelet.v1alpha1.GetSandboxResponse
+	(*ListSandboxesRequest)(nil),   // 18: tidelet.v1alpha1.ListSandboxesRequest
+	(*ListSandboxesResponse)(nil),  // 19: tidelet.v1alpha1.ListSandboxesResponse
+	(*StopSandboxRequest)(nil),     // 20: tidelet.v1alpha1.StopSandboxRequest
+	(*StopSandboxResponse)(nil),    // 21: tidelet.v1alpha1.StopSandboxResponse
+	(*DeleteSandboxRequest)(nil),   // 22: tidelet.v1alpha1.DeleteSandboxRequest
+	(*DeleteSandboxResponse)(nil),  // 23: tidelet.v1alpha1.DeleteSandboxResponse
+	(*ForkSandboxRequest)(nil),     // 24: tidelet.v1alpha1.ForkSandboxRequest
+	(*ForkSandboxResponse)(nil),    // 25: tidelet.v1alpha1.ForkSandboxResponse
+	(*Snapshot)(nil),               // 26: tidelet.v1alpha1.Snapshot
+	(*CreateSnapshotRequest)(nil),  // 27: tidelet.v1alpha1.CreateSnapshotRequest
+	(*CreateSnapshotResponse)(nil), // 28: tidelet.v1alpha1.CreateSnapshotResponse
+	(*GetSnapshotRequest)(nil),     // 29: tidelet.v1alpha1.GetSnapshotRequest
+	(*GetSnapshotResponse)(nil),    // 30: tidelet.v1alpha1.GetSnapshotResponse
+	(*ListSnapshotsRequest)(nil),   // 31: tidelet.v1alpha1.ListSnapshotsRequest
+	(*ListSnapshotsResponse)(nil),  // 32: tidelet.v1alpha1.ListSnapshotsResponse
+	(*DeleteSnapshotRequest)(nil),  // 33: tidelet.v1alpha1.DeleteSnapshotRequest
+	(*DeleteSnapshotResponse)(nil), // 34: tidelet.v1alpha1.DeleteSnapshotResponse
+	(*TerminalSize)(nil),           // 35: tidelet.v1alpha1.TerminalSize
+	(*ExecStart)(nil),              // 36: tidelet.v1alpha1.ExecStart
+	(*ExecRequest)(nil),            // 37: tidelet.v1alpha1.ExecRequest
+	(*Exit)(nil),                   // 38: tidelet.v1alpha1.Exit
+	(*ExecResponse)(nil),           // 39: tidelet.v1alpha1.ExecResponse
+	(*AttachStart)(nil),            // 40: tidelet.v1alpha1.AttachStart
+	(*AttachRequest)(nil),          // 41: tidelet.v1alpha1.AttachRequest
+	(*Attached)(nil),               // 42: tidelet.v1alpha1.Attached
+	(*AttachResponse)(nil),         // 43: tidelet.v1alpha1.AttachResponse
+	(*LogsRequest)(nil),            // 44: tidelet.v1alpha1.LogsRequest
+	(*LogsResponse)(nil),           // 45: tidelet.v1alpha1.LogsResponse
+	(*GetStatsRequest)(nil),        // 46: tidelet.v1alpha1.GetStatsRequest
+	(*Stats)(nil),                  // 47: tidelet.v1alpha1.Stats
+	(*GetStatsResponse)(nil),       // 48: tidelet.v1alpha1.GetStatsResponse
+	(*WatchRequest)(nil),           // 49: tidelet.v1alpha1.WatchRequest
+	(*WatchResponse)(nil),          // 50: tidelet.v1alpha1.WatchResponse
+	(*GetNodeRequest)(nil),         // 51: tidelet.v1alpha1.GetNodeRequest
+	(*NodeStatus)(nil),             // 52: tidelet.v1alpha1.NodeStatus
+	(*GetNodeResponse)(nil),        // 53: tidelet.v1alpha1.GetNodeResponse
+	(*GetVersionRequest)(nil),      // 54: tidelet.v1alpha1.GetVersionRequest
+	(*GetVersionResponse)(nil),     // 55: tidelet.v1alpha1.GetVersionResponse
+	nil,                            // 56: tidelet.v1alpha1.SandboxSpec.EnvEntry
+	nil,                            // 57: tidelet.v1alpha1.SandboxSpec.LabelsEntry
+	nil,                            // 58: tidelet.v1alpha1.ExecStart.EnvEntry
+	(*timestamppb.Timestamp)(nil),  // 59: google.protobuf.Timestamp
 }
 var file_tidelet_v1alpha1_tidelet_proto_depIdxs = []int32{
 	5,  // 0: tidelet.v1alpha1.Resources.requests:type_name -> tidelet.v1alpha1.ResourceList
 	5,  // 1: tidelet.v1alpha1.Resources.limits:type_name -> tidelet.v1alpha1.ResourceList
-	45, // 2: tidelet.v1alpha1.SandboxSpec.env:type_name -> tidelet.v1alpha1.SandboxSpec.EnvEntry
+	56, // 2: tidelet.v1alpha1.SandboxSpec.env:type_name -> tidelet.v1alpha1.SandboxSpec.EnvEntry
 	6,  // 3: tidelet.v1alpha1.SandboxSpec.resources:type_name -> tidelet.v1alpha1.Resources
 	0,  // 4: tidelet.v1alpha1.SandboxSpec.network:type_name -> tidelet.v1alpha1.NetworkMode
 	1,  // 5: tidelet.v1alpha1.SandboxSpec.runtime:type_name -> tidelet.v1alpha1.RuntimeClass
 	7,  // 6: tidelet.v1alpha1.SandboxSpec.mounts:type_name -> tidelet.v1alpha1.Mount
-	46, // 7: tidelet.v1alpha1.SandboxSpec.labels:type_name -> tidelet.v1alpha1.SandboxSpec.LabelsEntry
+	57, // 7: tidelet.v1alpha1.SandboxSpec.labels:type_name -> tidelet.v1alpha1.SandboxSpec.LabelsEntry
 	2,  // 8: tidelet.v1alpha1.SandboxStatus.phase:type_name -> tidelet.v1alpha1.Phase
-	48, // 9: tidelet.v1alpha1.SandboxStatus.started_at:type_name -> google.protobuf.Timestamp
-	48, // 10: tidelet.v1alpha1.SandboxStatus.finished_at:type_name -> google.protobuf.Timestamp
+	59, // 9: tidelet.v1alpha1.SandboxStatus.started_at:type_name -> google.protobuf.Timestamp
+	59, // 10: tidelet.v1alpha1.SandboxStatus.finished_at:type_name -> google.protobuf.Timestamp
 	6,  // 11: tidelet.v1alpha1.SandboxStatus.allocated:type_name -> tidelet.v1alpha1.Resources
 	9,  // 12: tidelet.v1alpha1.SandboxStatus.network:type_name -> tidelet.v1alpha1.NetworkStatus
-	48, // 13: tidelet.v1alpha1.Sandbox.created_at:type_name -> google.protobuf.Timestamp
+	59, // 13: tidelet.v1alpha1.Sandbox.created_at:type_name -> google.protobuf.Timestamp
 	8,  // 14: tidelet.v1alpha1.Sandbox.spec:type_name -> tidelet.v1alpha1.SandboxSpec
 	10, // 15: tidelet.v1alpha1.Sandbox.status:type_name -> tidelet.v1alpha1.SandboxStatus
 	8,  // 16: tidelet.v1alpha1.CreateSandboxRequest.spec:type_name -> tidelet.v1alpha1.SandboxSpec
@@ -3161,59 +3810,75 @@ var file_tidelet_v1alpha1_tidelet_proto_depIdxs = []int32{
 	11, // 19: tidelet.v1alpha1.GetSandboxResponse.sandbox:type_name -> tidelet.v1alpha1.Sandbox
 	11, // 20: tidelet.v1alpha1.ListSandboxesResponse.sandboxes:type_name -> tidelet.v1alpha1.Sandbox
 	11, // 21: tidelet.v1alpha1.StopSandboxResponse.sandbox:type_name -> tidelet.v1alpha1.Sandbox
-	47, // 22: tidelet.v1alpha1.ExecStart.env:type_name -> tidelet.v1alpha1.ExecStart.EnvEntry
-	24, // 23: tidelet.v1alpha1.ExecStart.terminal_size:type_name -> tidelet.v1alpha1.TerminalSize
-	25, // 24: tidelet.v1alpha1.ExecRequest.start:type_name -> tidelet.v1alpha1.ExecStart
-	24, // 25: tidelet.v1alpha1.ExecRequest.resize:type_name -> tidelet.v1alpha1.TerminalSize
-	27, // 26: tidelet.v1alpha1.ExecResponse.exit:type_name -> tidelet.v1alpha1.Exit
-	24, // 27: tidelet.v1alpha1.AttachStart.terminal_size:type_name -> tidelet.v1alpha1.TerminalSize
-	29, // 28: tidelet.v1alpha1.AttachRequest.start:type_name -> tidelet.v1alpha1.AttachStart
-	24, // 29: tidelet.v1alpha1.AttachRequest.resize:type_name -> tidelet.v1alpha1.TerminalSize
-	27, // 30: tidelet.v1alpha1.AttachResponse.exit:type_name -> tidelet.v1alpha1.Exit
-	31, // 31: tidelet.v1alpha1.AttachResponse.attached:type_name -> tidelet.v1alpha1.Attached
-	48, // 32: tidelet.v1alpha1.LogsRequest.since:type_name -> google.protobuf.Timestamp
-	3,  // 33: tidelet.v1alpha1.LogsResponse.stream:type_name -> tidelet.v1alpha1.LogStream
-	48, // 34: tidelet.v1alpha1.LogsResponse.timestamp:type_name -> google.protobuf.Timestamp
-	48, // 35: tidelet.v1alpha1.Stats.timestamp:type_name -> google.protobuf.Timestamp
-	36, // 36: tidelet.v1alpha1.GetStatsResponse.stats:type_name -> tidelet.v1alpha1.Stats
-	4,  // 37: tidelet.v1alpha1.WatchResponse.type:type_name -> tidelet.v1alpha1.EventType
-	48, // 38: tidelet.v1alpha1.WatchResponse.timestamp:type_name -> google.protobuf.Timestamp
-	11, // 39: tidelet.v1alpha1.WatchResponse.sandbox:type_name -> tidelet.v1alpha1.Sandbox
-	5,  // 40: tidelet.v1alpha1.NodeStatus.capacity:type_name -> tidelet.v1alpha1.ResourceList
-	5,  // 41: tidelet.v1alpha1.NodeStatus.allocatable:type_name -> tidelet.v1alpha1.ResourceList
-	5,  // 42: tidelet.v1alpha1.NodeStatus.allocated:type_name -> tidelet.v1alpha1.ResourceList
-	41, // 43: tidelet.v1alpha1.GetNodeResponse.node:type_name -> tidelet.v1alpha1.NodeStatus
-	12, // 44: tidelet.v1alpha1.SandboxService.CreateSandbox:input_type -> tidelet.v1alpha1.CreateSandboxRequest
-	14, // 45: tidelet.v1alpha1.SandboxService.StartSandbox:input_type -> tidelet.v1alpha1.StartSandboxRequest
-	16, // 46: tidelet.v1alpha1.SandboxService.GetSandbox:input_type -> tidelet.v1alpha1.GetSandboxRequest
-	18, // 47: tidelet.v1alpha1.SandboxService.ListSandboxes:input_type -> tidelet.v1alpha1.ListSandboxesRequest
-	20, // 48: tidelet.v1alpha1.SandboxService.StopSandbox:input_type -> tidelet.v1alpha1.StopSandboxRequest
-	22, // 49: tidelet.v1alpha1.SandboxService.DeleteSandbox:input_type -> tidelet.v1alpha1.DeleteSandboxRequest
-	26, // 50: tidelet.v1alpha1.SandboxService.Exec:input_type -> tidelet.v1alpha1.ExecRequest
-	30, // 51: tidelet.v1alpha1.SandboxService.Attach:input_type -> tidelet.v1alpha1.AttachRequest
-	33, // 52: tidelet.v1alpha1.SandboxService.Logs:input_type -> tidelet.v1alpha1.LogsRequest
-	35, // 53: tidelet.v1alpha1.SandboxService.GetStats:input_type -> tidelet.v1alpha1.GetStatsRequest
-	38, // 54: tidelet.v1alpha1.SandboxService.Watch:input_type -> tidelet.v1alpha1.WatchRequest
-	40, // 55: tidelet.v1alpha1.NodeService.GetNode:input_type -> tidelet.v1alpha1.GetNodeRequest
-	43, // 56: tidelet.v1alpha1.NodeService.GetVersion:input_type -> tidelet.v1alpha1.GetVersionRequest
-	13, // 57: tidelet.v1alpha1.SandboxService.CreateSandbox:output_type -> tidelet.v1alpha1.CreateSandboxResponse
-	15, // 58: tidelet.v1alpha1.SandboxService.StartSandbox:output_type -> tidelet.v1alpha1.StartSandboxResponse
-	17, // 59: tidelet.v1alpha1.SandboxService.GetSandbox:output_type -> tidelet.v1alpha1.GetSandboxResponse
-	19, // 60: tidelet.v1alpha1.SandboxService.ListSandboxes:output_type -> tidelet.v1alpha1.ListSandboxesResponse
-	21, // 61: tidelet.v1alpha1.SandboxService.StopSandbox:output_type -> tidelet.v1alpha1.StopSandboxResponse
-	23, // 62: tidelet.v1alpha1.SandboxService.DeleteSandbox:output_type -> tidelet.v1alpha1.DeleteSandboxResponse
-	28, // 63: tidelet.v1alpha1.SandboxService.Exec:output_type -> tidelet.v1alpha1.ExecResponse
-	32, // 64: tidelet.v1alpha1.SandboxService.Attach:output_type -> tidelet.v1alpha1.AttachResponse
-	34, // 65: tidelet.v1alpha1.SandboxService.Logs:output_type -> tidelet.v1alpha1.LogsResponse
-	37, // 66: tidelet.v1alpha1.SandboxService.GetStats:output_type -> tidelet.v1alpha1.GetStatsResponse
-	39, // 67: tidelet.v1alpha1.SandboxService.Watch:output_type -> tidelet.v1alpha1.WatchResponse
-	42, // 68: tidelet.v1alpha1.NodeService.GetNode:output_type -> tidelet.v1alpha1.GetNodeResponse
-	44, // 69: tidelet.v1alpha1.NodeService.GetVersion:output_type -> tidelet.v1alpha1.GetVersionResponse
-	57, // [57:70] is the sub-list for method output_type
-	44, // [44:57] is the sub-list for method input_type
-	44, // [44:44] is the sub-list for extension type_name
-	44, // [44:44] is the sub-list for extension extendee
-	0,  // [0:44] is the sub-list for field type_name
+	11, // 22: tidelet.v1alpha1.ForkSandboxResponse.sandboxes:type_name -> tidelet.v1alpha1.Sandbox
+	59, // 23: tidelet.v1alpha1.Snapshot.created_at:type_name -> google.protobuf.Timestamp
+	8,  // 24: tidelet.v1alpha1.Snapshot.spec:type_name -> tidelet.v1alpha1.SandboxSpec
+	26, // 25: tidelet.v1alpha1.CreateSnapshotResponse.snapshot:type_name -> tidelet.v1alpha1.Snapshot
+	26, // 26: tidelet.v1alpha1.GetSnapshotResponse.snapshot:type_name -> tidelet.v1alpha1.Snapshot
+	26, // 27: tidelet.v1alpha1.ListSnapshotsResponse.snapshots:type_name -> tidelet.v1alpha1.Snapshot
+	58, // 28: tidelet.v1alpha1.ExecStart.env:type_name -> tidelet.v1alpha1.ExecStart.EnvEntry
+	35, // 29: tidelet.v1alpha1.ExecStart.terminal_size:type_name -> tidelet.v1alpha1.TerminalSize
+	36, // 30: tidelet.v1alpha1.ExecRequest.start:type_name -> tidelet.v1alpha1.ExecStart
+	35, // 31: tidelet.v1alpha1.ExecRequest.resize:type_name -> tidelet.v1alpha1.TerminalSize
+	38, // 32: tidelet.v1alpha1.ExecResponse.exit:type_name -> tidelet.v1alpha1.Exit
+	35, // 33: tidelet.v1alpha1.AttachStart.terminal_size:type_name -> tidelet.v1alpha1.TerminalSize
+	40, // 34: tidelet.v1alpha1.AttachRequest.start:type_name -> tidelet.v1alpha1.AttachStart
+	35, // 35: tidelet.v1alpha1.AttachRequest.resize:type_name -> tidelet.v1alpha1.TerminalSize
+	38, // 36: tidelet.v1alpha1.AttachResponse.exit:type_name -> tidelet.v1alpha1.Exit
+	42, // 37: tidelet.v1alpha1.AttachResponse.attached:type_name -> tidelet.v1alpha1.Attached
+	59, // 38: tidelet.v1alpha1.LogsRequest.since:type_name -> google.protobuf.Timestamp
+	3,  // 39: tidelet.v1alpha1.LogsResponse.stream:type_name -> tidelet.v1alpha1.LogStream
+	59, // 40: tidelet.v1alpha1.LogsResponse.timestamp:type_name -> google.protobuf.Timestamp
+	59, // 41: tidelet.v1alpha1.Stats.timestamp:type_name -> google.protobuf.Timestamp
+	47, // 42: tidelet.v1alpha1.GetStatsResponse.stats:type_name -> tidelet.v1alpha1.Stats
+	4,  // 43: tidelet.v1alpha1.WatchResponse.type:type_name -> tidelet.v1alpha1.EventType
+	59, // 44: tidelet.v1alpha1.WatchResponse.timestamp:type_name -> google.protobuf.Timestamp
+	11, // 45: tidelet.v1alpha1.WatchResponse.sandbox:type_name -> tidelet.v1alpha1.Sandbox
+	5,  // 46: tidelet.v1alpha1.NodeStatus.capacity:type_name -> tidelet.v1alpha1.ResourceList
+	5,  // 47: tidelet.v1alpha1.NodeStatus.allocatable:type_name -> tidelet.v1alpha1.ResourceList
+	5,  // 48: tidelet.v1alpha1.NodeStatus.allocated:type_name -> tidelet.v1alpha1.ResourceList
+	52, // 49: tidelet.v1alpha1.GetNodeResponse.node:type_name -> tidelet.v1alpha1.NodeStatus
+	12, // 50: tidelet.v1alpha1.SandboxService.CreateSandbox:input_type -> tidelet.v1alpha1.CreateSandboxRequest
+	14, // 51: tidelet.v1alpha1.SandboxService.StartSandbox:input_type -> tidelet.v1alpha1.StartSandboxRequest
+	16, // 52: tidelet.v1alpha1.SandboxService.GetSandbox:input_type -> tidelet.v1alpha1.GetSandboxRequest
+	18, // 53: tidelet.v1alpha1.SandboxService.ListSandboxes:input_type -> tidelet.v1alpha1.ListSandboxesRequest
+	20, // 54: tidelet.v1alpha1.SandboxService.StopSandbox:input_type -> tidelet.v1alpha1.StopSandboxRequest
+	22, // 55: tidelet.v1alpha1.SandboxService.DeleteSandbox:input_type -> tidelet.v1alpha1.DeleteSandboxRequest
+	24, // 56: tidelet.v1alpha1.SandboxService.ForkSandbox:input_type -> tidelet.v1alpha1.ForkSandboxRequest
+	37, // 57: tidelet.v1alpha1.SandboxService.Exec:input_type -> tidelet.v1alpha1.ExecRequest
+	41, // 58: tidelet.v1alpha1.SandboxService.Attach:input_type -> tidelet.v1alpha1.AttachRequest
+	44, // 59: tidelet.v1alpha1.SandboxService.Logs:input_type -> tidelet.v1alpha1.LogsRequest
+	46, // 60: tidelet.v1alpha1.SandboxService.GetStats:input_type -> tidelet.v1alpha1.GetStatsRequest
+	49, // 61: tidelet.v1alpha1.SandboxService.Watch:input_type -> tidelet.v1alpha1.WatchRequest
+	27, // 62: tidelet.v1alpha1.SnapshotService.CreateSnapshot:input_type -> tidelet.v1alpha1.CreateSnapshotRequest
+	29, // 63: tidelet.v1alpha1.SnapshotService.GetSnapshot:input_type -> tidelet.v1alpha1.GetSnapshotRequest
+	31, // 64: tidelet.v1alpha1.SnapshotService.ListSnapshots:input_type -> tidelet.v1alpha1.ListSnapshotsRequest
+	33, // 65: tidelet.v1alpha1.SnapshotService.DeleteSnapshot:input_type -> tidelet.v1alpha1.DeleteSnapshotRequest
+	51, // 66: tidelet.v1alpha1.NodeService.GetNode:input_type -> tidelet.v1alpha1.GetNodeRequest
+	54, // 67: tidelet.v1alpha1.NodeService.GetVersion:input_type -> tidelet.v1alpha1.GetVersionRequest
+	13, // 68: tidelet.v1alpha1.SandboxService.CreateSandbox:output_type -> tidelet.v1alpha1.CreateSandboxResponse
+	15, // 69: tidelet.v1alpha1.SandboxService.StartSandbox:output_type -> tidelet.v1alpha1.StartSandboxResponse
+	17, // 70: tidelet.v1alpha1.SandboxService.GetSandbox:output_type -> tidelet.v1alpha1.GetSandboxResponse
+	19, // 71: tidelet.v1alpha1.SandboxService.ListSandboxes:output_type -> tidelet.v1alpha1.ListSandboxesResponse
+	21, // 72: tidelet.v1alpha1.SandboxService.StopSandbox:output_type -> tidelet.v1alpha1.StopSandboxResponse
+	23, // 73: tidelet.v1alpha1.SandboxService.DeleteSandbox:output_type -> tidelet.v1alpha1.DeleteSandboxResponse
+	25, // 74: tidelet.v1alpha1.SandboxService.ForkSandbox:output_type -> tidelet.v1alpha1.ForkSandboxResponse
+	39, // 75: tidelet.v1alpha1.SandboxService.Exec:output_type -> tidelet.v1alpha1.ExecResponse
+	43, // 76: tidelet.v1alpha1.SandboxService.Attach:output_type -> tidelet.v1alpha1.AttachResponse
+	45, // 77: tidelet.v1alpha1.SandboxService.Logs:output_type -> tidelet.v1alpha1.LogsResponse
+	48, // 78: tidelet.v1alpha1.SandboxService.GetStats:output_type -> tidelet.v1alpha1.GetStatsResponse
+	50, // 79: tidelet.v1alpha1.SandboxService.Watch:output_type -> tidelet.v1alpha1.WatchResponse
+	28, // 80: tidelet.v1alpha1.SnapshotService.CreateSnapshot:output_type -> tidelet.v1alpha1.CreateSnapshotResponse
+	30, // 81: tidelet.v1alpha1.SnapshotService.GetSnapshot:output_type -> tidelet.v1alpha1.GetSnapshotResponse
+	32, // 82: tidelet.v1alpha1.SnapshotService.ListSnapshots:output_type -> tidelet.v1alpha1.ListSnapshotsResponse
+	34, // 83: tidelet.v1alpha1.SnapshotService.DeleteSnapshot:output_type -> tidelet.v1alpha1.DeleteSnapshotResponse
+	53, // 84: tidelet.v1alpha1.NodeService.GetNode:output_type -> tidelet.v1alpha1.GetNodeResponse
+	55, // 85: tidelet.v1alpha1.NodeService.GetVersion:output_type -> tidelet.v1alpha1.GetVersionResponse
+	68, // [68:86] is the sub-list for method output_type
+	50, // [50:68] is the sub-list for method input_type
+	50, // [50:50] is the sub-list for extension type_name
+	50, // [50:50] is the sub-list for extension extendee
+	0,  // [0:50] is the sub-list for field type_name
 }
 
 func init() { file_tidelet_v1alpha1_tidelet_proto_init() }
@@ -3222,24 +3887,24 @@ func file_tidelet_v1alpha1_tidelet_proto_init() {
 		return
 	}
 	file_tidelet_v1alpha1_tidelet_proto_msgTypes[5].OneofWrappers = []any{}
-	file_tidelet_v1alpha1_tidelet_proto_msgTypes[21].OneofWrappers = []any{
+	file_tidelet_v1alpha1_tidelet_proto_msgTypes[32].OneofWrappers = []any{
 		(*ExecRequest_Start)(nil),
 		(*ExecRequest_Stdin)(nil),
 		(*ExecRequest_Resize)(nil),
 		(*ExecRequest_CloseStdin)(nil),
 	}
-	file_tidelet_v1alpha1_tidelet_proto_msgTypes[23].OneofWrappers = []any{
+	file_tidelet_v1alpha1_tidelet_proto_msgTypes[34].OneofWrappers = []any{
 		(*ExecResponse_Stdout)(nil),
 		(*ExecResponse_Stderr)(nil),
 		(*ExecResponse_Exit)(nil),
 	}
-	file_tidelet_v1alpha1_tidelet_proto_msgTypes[25].OneofWrappers = []any{
+	file_tidelet_v1alpha1_tidelet_proto_msgTypes[36].OneofWrappers = []any{
 		(*AttachRequest_Start)(nil),
 		(*AttachRequest_Stdin)(nil),
 		(*AttachRequest_Resize)(nil),
 		(*AttachRequest_CloseStdin)(nil),
 	}
-	file_tidelet_v1alpha1_tidelet_proto_msgTypes[27].OneofWrappers = []any{
+	file_tidelet_v1alpha1_tidelet_proto_msgTypes[38].OneofWrappers = []any{
 		(*AttachResponse_Stdout)(nil),
 		(*AttachResponse_Stderr)(nil),
 		(*AttachResponse_Exit)(nil),
@@ -3251,9 +3916,9 @@ func file_tidelet_v1alpha1_tidelet_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_tidelet_v1alpha1_tidelet_proto_rawDesc), len(file_tidelet_v1alpha1_tidelet_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   43,
+			NumMessages:   54,
 			NumExtensions: 0,
-			NumServices:   2,
+			NumServices:   3,
 		},
 		GoTypes:           file_tidelet_v1alpha1_tidelet_proto_goTypes,
 		DependencyIndexes: file_tidelet_v1alpha1_tidelet_proto_depIdxs,

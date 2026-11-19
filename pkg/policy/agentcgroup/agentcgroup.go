@@ -1,10 +1,10 @@
 // Package agentcgroup implements AgentCgroup (Zheng et al., "AgentCgroup:
 // Understanding and Controlling OS Resources of AI Agents", arXiv
-// 2602.09345; code github.com/eunomia-bpf/agentcgroup) as a tidelet policy,
-// to serve as a baseline. The paper's controller has three mechanisms, each
-// answering one of the mismatches it identifies between agent workloads and
-// container-level resource control; all three are here, with the
-// substitutions a replay harness on a stock kernel forces, listed below.
+// 2602.09345; code github.com/eunomia-bpf/agentcgroup) as a tidelet policy.
+// The paper's controller has three mechanisms, each answering one of the
+// mismatches it identifies between agent workloads and container-level
+// resource control; all three are here, with the substitutions that
+// unmodified agents on a stock kernel force, listed below.
 //
 // 1. Fine-grained resource domains (the granularity mismatch). The paper
 // gives every tool call an ephemeral child cgroup of the agent's session
@@ -47,15 +47,15 @@
 // 3. Intent-driven coordination (the adaptability mismatch). Upward, the
 // paper's agent declares AGENT_RESOURCE_HINT (memory:low, memory:medium,
 // memory:high, memory:<size>) before a command and the wrapper maps it to
-// memory.high (256 MB, 1 GB, max). A replayed agent cannot declare, so the
+// memory.high (256 MB, 1 GB, max). An unmodified agent does not declare, so the
 // hint is derived from the tool call itself the way the paper reports its
 // agent classifying them (file reads and git status low, test suites and
 // builds high): the wrapper's mapping is then applied unchanged. Downward,
 // the wrapper injects natural-language feedback into stderr when a command
 // is OOM-killed or throttled beyond recovery; here the same condition is
 // detected (a call frozen, or run at its memory limit) and the feedback is
-// recorded in the log and the counters, since a replayed agent's next
-// request is fixed and cannot act on it.
+// recorded in the log and the counters, since an unmodified agent never
+// sees it.
 //
 // Admission is not part of AgentCgroup (its sessions are a fixed set), so
 // by default every arrival runs at once with its limits as hard caps and
@@ -64,10 +64,10 @@
 // sandbox starts only while the pool's measured CPU and memory are both
 // under it, and is rejected for the workload to offer again otherwise.
 //
-// The paper's downward feedback closes a loop the replay cannot close: a
+// The paper's downward feedback closes a loop this policy cannot close: a
 // call throttled at its hint's memory.high is reported to the agent
 // ("[Resource] Command throttled beyond recovery ... run more targeted
-// operations ..."), which re-issues it with a higher hint. A replayed
+// operations ..."), which re-issues it with a higher hint. An unmodified
 // agent cannot, and the domain here is the whole sandbox (no child cgroup
 // per call), so a light call's cap also throttles a background job an
 // earlier heavy call left running, for good: a livelock the paper's
@@ -555,7 +555,7 @@ func (p *Policy) OnSample(s policy.Sample, view policy.View) []policy.Action {
 			}
 		}
 		// Escalation: the agent's response to the throttling feedback, which
-		// the replay cannot give: one hint level up after Escalate
+		// an unmodified agent cannot give: one hint level up after Escalate
 		// sample-seconds over the hint's memory.high, cumulative over the call.
 		if d := b.Domain; d != nil && p.Escalate > 0 && !d.High && d.Over >= int(p.Escalate/time.Second)*(d.Promoted+1) {
 			from := d.Hint

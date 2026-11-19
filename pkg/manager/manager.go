@@ -71,9 +71,11 @@ type Config struct {
 	// SwapToLimit caps the swap of a sandbox whose policy leaves it
 	// unlimited at the sandbox's memory limit, as `docker run --memory`
 	// does without --memory-swap: the sandbox is OOM-killed where a
-	// container recorded that way would have been, whatever the policy. A
+	// container run that way would have been, whatever the policy. A
 	// policy's own swap setting (none, or a limit) is kept.
 	SwapToLimit bool
+	// SnapshotDir is where snapshot records are kept. Empty keeps them in memory only.
+	SnapshotDir string
 	Logger      *slog.Logger
 }
 
@@ -141,6 +143,7 @@ type Manager struct {
 	timers   map[string]*time.Timer
 	entries  map[string]*entry
 	byName   map[string]string
+	snaps    map[string]*sandbox.Snapshot
 	lastNode host.Sample
 	subs     map[chan sandbox.Event]struct{}
 	gate     ModelGate
@@ -183,6 +186,7 @@ func New(cfg Config) (*Manager, error) {
 		entries:    map[string]*entry{},
 		timers:     map[string]*time.Timer{},
 		byName:     map[string]string{},
+		snaps:      map[string]*sandbox.Snapshot{},
 		subs:       map[chan sandbox.Event]struct{}{},
 		heldOpen:   map[string]string{},
 		reclaiming: map[string]bool{},
@@ -394,6 +398,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			m.log.Warn("reconcile sandbox", "id", rec.Sandbox.ID, "err", err)
 		}
 	}
+	m.loadSnapshots(ctx)
 	ids, err := m.cfg.Runtime.List(ctx)
 	if err != nil {
 		return fmt.Errorf("list runtime sandboxes: %w", err)
@@ -804,6 +809,12 @@ func validateSpec(spec *sandbox.Spec) error {
 // Create submits a sandbox to the policy. Depending on the decision the
 // returned sandbox is Created (in the runtime, not started) or Queued.
 func (m *Manager) Create(ctx context.Context, name string, spec sandbox.Spec) (*sandbox.Sandbox, error) {
+	if spec.Snapshot != "" {
+		var err error
+		if spec, err = m.fromSnapshot(spec); err != nil {
+			return nil, err
+		}
+	}
 	if err := validateSpec(&spec); err != nil {
 		return nil, err
 	}
@@ -951,7 +962,7 @@ func (m *Manager) createInRuntime(ctx context.Context, e *entry) error {
 	m.mu.Lock()
 	if _, alive := m.entries[sbCopy.ID]; !alive || e.deleting {
 		// Deleted while it was being created (a queued sandbox the policy dispatched
-		// as the replay harness's cutoff deleted it): the runtime now holds a sandbox
+		// just as its owner deleted it): the runtime now holds a sandbox
 		// nothing tracks, so it goes again.
 		m.mu.Unlock()
 		m.log.Warn("sandbox deleted while being created; removing it from the runtime", "id", sbCopy.ID)
@@ -1119,6 +1130,7 @@ func (m *Manager) persist(e *entry) error {
 
 func (m *Manager) remove(id string) {
 	m.mu.Lock()
+	from := ""
 	if e, ok := m.entries[id]; ok {
 		if e.cancel != nil {
 			e.cancel()
@@ -1127,8 +1139,10 @@ func (m *Manager) remove(id string) {
 			delete(m.byName, e.sb.Name)
 		}
 		delete(m.entries, id)
+		from = e.sb.Spec.Snapshot
 	}
 	m.mu.Unlock()
+	m.releaseSnapshot(from)
 }
 
 func (m *Manager) snapshot(e *entry) *sandbox.Sandbox {

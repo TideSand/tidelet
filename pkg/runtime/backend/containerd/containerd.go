@@ -111,7 +111,11 @@ type Config struct {
 	// makes dumps and restores quick).
 	CtlDir  string
 	CRIUDir string
-	Logger  *slog.Logger
+	// SnapshotDir, with InitBinary, makes sandboxes snapshottable: it holds the snapshots'
+	// CRIU images and memory files (see snapshot.go), and must be a tmpfs for sandboxes
+	// created from a snapshot to share its memory without any I/O.
+	SnapshotDir string
+	Logger      *slog.Logger
 }
 
 // taskIO is a loaded task together with the hub that owns its streams.
@@ -153,6 +157,10 @@ type Runtime struct {
 	cpuBase map[string][2]uint64
 	// noReflink is set once a reflink copy failed: checkpoints use rsync from then on.
 	noReflink bool
+	// restoring: sandboxes created from a snapshot and not started yet.
+	restoring map[string]*snapshotMeta
+	// snapMu serialises writing a snapshot's memory files with collecting unused ones.
+	snapMu sync.Mutex
 }
 
 var _ runtime.Runtime = (*Runtime)(nil)
@@ -203,7 +211,8 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		wholeBase: map[string]*wholeCkpt{},
 		scanPaths: map[string]bool{},
 		rolled:    map[string]*wholeCkpt{}, rolling: map[string]bool{},
-		cpuBase: map[string][2]uint64{},
+		cpuBase:   map[string][2]uint64{},
+		restoring: map[string]*snapshotMeta{},
 	}
 	if cfg.MicroVMHandler != "" {
 		if bin, err := shimBinary(cfg.MicroVMHandler); err != nil {
@@ -296,6 +305,9 @@ func (r *Runtime) ensureImage(ctx context.Context, ref string) (client.Image, er
 
 // Create implements runtime.Runtime.
 func (r *Runtime) Create(ctx context.Context, sb *sandbox.Sandbox, cg runtime.Cgroup) (retErr error) {
+	if sb.Spec.Snapshot != "" {
+		return r.createFromSnapshot(ctx, sb, cg)
+	}
 	img, err := r.ensureImage(ctx, sb.Spec.Image)
 	if err != nil {
 		return err
@@ -314,6 +326,22 @@ func (r *Runtime) Create(ctx context.Context, sb *sandbox.Sandbox, cg runtime.Cg
 	labels := map[string]string{labelManaged: "true", labelName: sb.Name, labelRuntime: string(sb.Spec.Runtime)}
 	for k, v := range sb.Spec.Labels {
 		labels[k] = v
+	}
+	snapshottable := r.Snapshots() && sb.Spec.Runtime != sandbox.RuntimeMicroVM
+	if snapshottable {
+		// The sandbox starts a family: it and everything created from its snapshots map
+		// their shared memory from this directory.
+		dir, err := r.ensureMemDir(sb.ID)
+		if err != nil {
+			return fmt.Errorf("memory directory: %w", err)
+		}
+		defer func() {
+			if retErr != nil {
+				_ = os.RemoveAll(dir)
+			}
+		}()
+		specOpts = append(specOpts, oci.WithMounts([]specs.Mount{memMountSpec(dir)}))
+		labels[labelFamily] = sb.ID
 	}
 
 	netOpts, netStatus, err := r.setupNetwork(ctx, sb)
@@ -384,6 +412,13 @@ func (r *Runtime) Create(ctx context.Context, sb *sandbox.Sandbox, cg runtime.Cg
 		hub.close()
 		return fmt.Errorf("create task: %w", err)
 	}
+	if snapshottable {
+		if err := r.bindOvercommit(ctx, task.Pid()); err != nil {
+			hub.close()
+			_, _ = task.Delete(context.WithoutCancel(ctx), client.WithProcessKill)
+			return fmt.Errorf("bind overcommit_memory: %w", err)
+		}
+	}
 	r.mu.Lock()
 	r.tasks[sb.ID] = &taskIO{task: task, hub: hub}
 	r.mu.Unlock()
@@ -448,8 +483,7 @@ func joinNamespaceOpts(nsPath, hostsFile, resolvConf string) []oci.SpecOpts {
 // withOOMScoreAdj gives the container's processes the OOM score adjustment
 // Docker gives them (0). Without it they inherit the shim's -998, every
 // process's badness is clamped alike, and a memory-cgroup OOM may kill the
-// agent (claude) instead of the tool that grew: a recorded task that ran on
-// after its tool was killed then dies in the replay. The exec'd processes
+// agent instead of the tool that grew. The exec'd processes
 // copy the container's process spec, so they get it too.
 func withOOMScoreAdj(adj int) oci.SpecOpts {
 	return func(_ context.Context, _ oci.Client, _ *containers.Container, s *oci.Spec) error {
@@ -681,8 +715,21 @@ func (r *Runtime) Start(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
+	r.mu.Lock()
+	meta := r.restoring[id]
+	delete(r.restoring, id)
+	r.mu.Unlock()
+	t0 := time.Now()
 	if err := t.task.Start(ctx); err != nil {
+		if meta != nil {
+			r.keepRestoreLog(id, r.restoreWorkDir(id))
+			return fmt.Errorf("restore snapshot %s: %w", meta.ID, err)
+		}
 		return fmt.Errorf("start task: %w", err)
+	}
+	if meta != nil {
+		r.log.Debug("snapshot restored", "id", id, "snapshot", meta.ID, "took", time.Since(t0).Round(time.Millisecond))
+		r.started(ctx, id, t, meta)
 	}
 	return nil
 }
@@ -829,6 +876,13 @@ func (r *Runtime) Delete(ctx context.Context, id string) error {
 		labels, _ := ctr.Labels(ctx)
 		if err := ctr.Delete(ctx, client.WithSnapshotCleanup); err != nil && !errdefs.IsNotFound(err) {
 			return fmt.Errorf("delete container: %w", err)
+		}
+		r.mu.Lock()
+		delete(r.restoring, id)
+		r.mu.Unlock()
+		if r.Snapshots() {
+			_ = os.RemoveAll(r.restoreWorkDir(id))
+			r.collectFamily(ctx, labels[labelFamily])
 		}
 		if nsPath := labels[labelNetNS]; nsPath != "" && r.cfg.Network != nil {
 			if err := r.cfg.Network.Teardown(ctx, id, nsPath); err != nil {

@@ -57,6 +57,7 @@ func run() error {
 		wholeCkpts     = flag.Bool("container-checkpoints", false, "make sandboxes checkpointable as a whole (processes, memory, filesystem) with CRIU: tidelet-init, next to tideletd, runs as each sandbox's init and starts its execs; whole-sandbox rollbacks stop a sandbox and restores resume it")
 		holdWhole      = flag.Bool("hold-whole", false, "the LLM proxy keeps a model response's whole body back until the policy's decision (for policies that checkpoint before delivery); off, responses stream up to their first tool call")
 		criuDir        = flag.String("criu-dir", "", "with --container-checkpoints: where CRIU images go (default <run-dir>/criu, a tmpfs mounted there when it is not one already)")
+		snapshotDir    = flag.String("snapshot-dir", "", "with --container-checkpoints: where snapshots keep their CRIU images and the memory their sandboxes share (default <run-dir>/snapshots, a tmpfs mounted there when it is not one already; it must be a tmpfs)")
 		checkpointDir  = flag.String("checkpoint-dir", "", "directory for filesystem checkpoints (default <state-dir>/checkpoints); on the snapshotter's own XFS or btrfs filesystem, checkpoints are reflink copies")
 		runDir         = flag.String("run-dir", "/run/tidelet", "directory for task FIFOs")
 		ctrAddr        = flag.String("containerd-address", containerd.DefaultAddress, "containerd socket")
@@ -68,7 +69,7 @@ func run() error {
 		cniPluginDir   = flag.String("cni-plugin-dir", network.DefaultPluginDir, "CNI plugin binary directory")
 		cniDisable     = flag.Bool("cni-disable", false, "disable bridge networking")
 		policyName     = flag.String("policy", "strict", "overcommit policy: "+strings.Join(registry.Names(), ", "))
-		sandboxSwap    = flag.String("sandbox-swap", "unlimited", "how much a sandbox whose policy leaves its swap unlimited may swap: \"unlimited\" (the kernel's default) or \"limit\" (up to its memory limit, as docker run --memory without --memory-swap: the sandbox is OOM-killed where a container recorded that way would have been); a policy's own swap setting is kept")
+		sandboxSwap    = flag.String("sandbox-swap", "unlimited", "how much a sandbox whose policy leaves its swap unlimited may swap: \"unlimited\" (the kernel's default) or \"limit\" (up to its memory limit, as docker run --memory without --memory-swap: the sandbox is OOM-killed where a container run that way would have been); a policy's own swap setting is kept")
 		reservedCPU    = flag.String("system-reserved-cpu", "0", "CPU reserved for the host, e.g. 500m")
 		reservedMem    = flag.String("system-reserved-memory", "0", "memory reserved for the host, e.g. 1Gi")
 		capacityCPU    = flag.String("capacity-cpu", "", "override detected CPU capacity")
@@ -200,6 +201,13 @@ func run() error {
 				logger.Warn("CRIU images go to disk", "dir", ctrCfg.CRIUDir, "err", err)
 			}
 		}
+		ctrCfg.SnapshotDir = *snapshotDir
+		if ctrCfg.SnapshotDir == "" {
+			ctrCfg.SnapshotDir = filepath.Join(*runDir, "snapshots")
+			if err := ensureTmpfs(ctrCfg.SnapshotDir); err != nil {
+				return fmt.Errorf("snapshot directory %s: %w", ctrCfg.SnapshotDir, err)
+			}
+		}
 	}
 	rt, err := containerd.New(ctx, ctrCfg)
 	if err != nil {
@@ -229,6 +237,7 @@ func run() error {
 		SampleInterval: *sampleInterval,
 		TickInterval:   *tickInterval,
 		SwapToLimit:    swapToLimit,
+		SnapshotDir:    filepath.Join(*stateDir, "snapshots"),
 		Logger:         logger,
 	}
 	if scope != nil {

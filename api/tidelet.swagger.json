@@ -10,6 +10,10 @@
       "description": "SandboxService manages the lifecycle of sandboxes."
     },
     {
+      "name": "SnapshotService",
+      "description": "SnapshotService manages snapshots: running sandboxes captured at one\ninstant (processes, memory, filesystem) without being stopped. A sandbox\ncreated with SandboxSpec.snapshot set starts as a copy of the snapshotted\nsandbox. Snapshots live in memory and do not survive a reboot."
+    },
+    {
       "name": "NodeService",
       "description": "NodeService reports on the node as a whole."
     }
@@ -374,6 +378,45 @@
         ]
       }
     },
+    "/v1alpha1/sandboxes/{sandbox}:fork": {
+      "post": {
+        "summary": "ForkSandbox makes running copies of a running sandbox: same processes,\nmemory and filesystem, each continuing from the same instant with its own\nidentity, and sharing the sandbox's memory until it writes to it. The\nsandbox itself keeps running. It is CreateSnapshot followed by a\nCreateSandbox and StartSandbox per copy, with a snapshot that goes away\nwith the last copy.",
+        "operationId": "SandboxService_ForkSandbox",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1alpha1ForkSandboxResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sandbox",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SandboxServiceForkSandboxBody"
+            }
+          }
+        ],
+        "tags": [
+          "SandboxService"
+        ]
+      }
+    },
     "/v1alpha1/sandboxes/{sandbox}:start": {
       "post": {
         "summary": "StartSandbox starts a created sandbox. On a queued sandbox it records\nthat a start is wanted, so the sandbox starts as soon as the policy\ndispatches it.",
@@ -445,6 +488,119 @@
         ]
       }
     },
+    "/v1alpha1/snapshots": {
+      "get": {
+        "operationId": "SnapshotService_ListSnapshots",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1alpha1ListSnapshotsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "SnapshotService"
+        ]
+      },
+      "post": {
+        "summary": "CreateSnapshot snapshots a running sandbox. The sandbox is paused while\nit is taken and then runs on.",
+        "operationId": "SnapshotService_CreateSnapshot",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1alpha1CreateSnapshotResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1alpha1CreateSnapshotRequest"
+            }
+          }
+        ],
+        "tags": [
+          "SnapshotService"
+        ]
+      }
+    },
+    "/v1alpha1/snapshots/{snapshot}": {
+      "get": {
+        "operationId": "SnapshotService_GetSnapshot",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1alpha1GetSnapshotResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "snapshot",
+            "description": "Snapshot ID, name, or unique ID prefix.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "SnapshotService"
+        ]
+      },
+      "delete": {
+        "summary": "DeleteSnapshot removes a snapshot. It is refused while sandboxes created\nfrom the snapshot exist.",
+        "operationId": "SnapshotService_DeleteSnapshot",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1alpha1DeleteSnapshotResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "snapshot",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "SnapshotService"
+        ]
+      }
+    },
     "/v1alpha1/version": {
       "get": {
         "operationId": "NodeService_GetVersion",
@@ -469,6 +625,23 @@
     }
   },
   "definitions": {
+    "SandboxServiceForkSandboxBody": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "How many copies to make. Defaults to the number of names, or 1."
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional names for the copies, in order."
+        }
+      }
+    },
     "SandboxServiceStopSandboxBody": {
       "type": "object",
       "properties": {
@@ -583,7 +756,31 @@
         }
       }
     },
+    "v1alpha1CreateSnapshotRequest": {
+      "type": "object",
+      "properties": {
+        "sandbox": {
+          "type": "string",
+          "description": "The running sandbox to snapshot."
+        },
+        "name": {
+          "type": "string",
+          "description": "Optional unique name."
+        }
+      }
+    },
+    "v1alpha1CreateSnapshotResponse": {
+      "type": "object",
+      "properties": {
+        "snapshot": {
+          "$ref": "#/definitions/v1alpha1Snapshot"
+        }
+      }
+    },
     "v1alpha1DeleteSandboxResponse": {
+      "type": "object"
+    },
+    "v1alpha1DeleteSnapshotResponse": {
       "type": "object"
     },
     "v1alpha1EventType": {
@@ -678,6 +875,18 @@
         }
       }
     },
+    "v1alpha1ForkSandboxResponse": {
+      "type": "object",
+      "properties": {
+        "sandboxes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1alpha1Sandbox"
+          }
+        }
+      }
+    },
     "v1alpha1GetNodeResponse": {
       "type": "object",
       "properties": {
@@ -691,6 +900,14 @@
       "properties": {
         "sandbox": {
           "$ref": "#/definitions/v1alpha1Sandbox"
+        }
+      }
+    },
+    "v1alpha1GetSnapshotResponse": {
+      "type": "object",
+      "properties": {
+        "snapshot": {
+          "$ref": "#/definitions/v1alpha1Snapshot"
         }
       }
     },
@@ -718,6 +935,18 @@
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1alpha1Sandbox"
+          }
+        }
+      }
+    },
+    "v1alpha1ListSnapshotsResponse": {
+      "type": "object",
+      "properties": {
+        "snapshots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1alpha1Snapshot"
           }
         }
       }
@@ -965,6 +1194,10 @@
         "hostname": {
           "type": "string",
           "description": "Hostname inside the sandbox. Defaults to the sandbox name or ID."
+        },
+        "snapshot": {
+          "type": "string",
+          "description": "Snapshot ID, name, or unique ID prefix. When set, the sandbox is created\nas a copy of the snapshotted sandbox instead of running an image's\ncommand: its processes continue from the snapshot. Only resources,\nlabels, priority and hostname may be given with it; everything else is\nthe snapshot's."
         }
       }
     },
@@ -999,6 +1232,56 @@
         },
         "network": {
           "$ref": "#/definitions/v1alpha1NetworkStatus"
+        }
+      }
+    },
+    "v1alpha1Snapshot": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sandbox": {
+          "type": "string",
+          "description": "ID and name of the sandbox the snapshot was taken of."
+        },
+        "sandboxName": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "spec": {
+          "$ref": "#/definitions/v1alpha1SandboxSpec",
+          "description": "The snapshotted sandbox's spec, with the resources it was granted."
+        },
+        "sharedBytes": {
+          "type": "string",
+          "format": "uint64",
+          "description": "Memory every sandbox created from the snapshot shares."
+        },
+        "privateBytes": {
+          "type": "string",
+          "format": "uint64",
+          "description": "Memory each sandbox created from the snapshot gets a copy of."
+        },
+        "tookSeconds": {
+          "type": "number",
+          "format": "double",
+          "description": "Seconds taking the snapshot took."
+        },
+        "ephemeral": {
+          "type": "boolean",
+          "description": "Deleted with the last sandbox created from it."
+        },
+        "sandboxes": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Sandboxes created from the snapshot that exist now."
         }
       }
     },

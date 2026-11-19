@@ -134,6 +134,38 @@ type ContainerCheckpointer interface {
 	AbandonContainer(id string)
 }
 
+// SnapshotInfo describes a snapshot just taken.
+type SnapshotInfo struct {
+	// SharedBytes is the memory held in the snapshot's memory files: what every sandbox
+	// created from it maps without copying. Files shared with the snapshot it descends
+	// from count here too.
+	SharedBytes uint64
+	// PrivateBytes is the memory held in the snapshot's image itself, which every sandbox
+	// created from it gets a copy of.
+	PrivateBytes uint64
+	// Rebased says the memory files were written anew for this snapshot (always for the
+	// first snapshot of a lineage; later when the changes since outgrew a share of them).
+	Rebased bool
+	Took    time.Duration
+}
+
+// Snapshotter is implemented by runtimes that can snapshot a running sandbox (processes,
+// memory, filesystem) and create new sandboxes from the snapshot: Create with a spec that
+// names a snapshot restores it instead of starting the image's command, and Start resumes
+// the restored processes. The snapshotted sandbox keeps running, undisturbed. Sandboxes
+// created from one snapshot share its memory copy-on-write.
+type Snapshotter interface {
+	// Snapshots says whether sandboxes are created snapshottable.
+	Snapshots() bool
+	// Snapshot takes a snapshot of a running sandbox under the given ID.
+	Snapshot(ctx context.Context, id, snapshotID string) (SnapshotInfo, error)
+	// HasSnapshot says whether the snapshot's data is still there (it lives in memory and
+	// does not survive a reboot).
+	HasSnapshot(snapshotID string) bool
+	// DeleteSnapshot removes a snapshot. No sandbox created from it may be left.
+	DeleteSnapshot(ctx context.Context, snapshotID string) error
+}
+
 // ExecResult is the outcome of an exec.
 type ExecResult struct {
 	ExitCode int32

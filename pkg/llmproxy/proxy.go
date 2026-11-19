@@ -310,7 +310,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var keepalive func() bool
 			// With HoldWhole not even a comment goes out: the agent must hold no byte of the
 			// body if it is checkpointed before delivery (its own idle timeouts must allow the
-			// hold, as the replay harness sets them).
+			// hold).
 			if gate.stream && !p.cfg.HoldWhole {
 				keepalive = func() bool { return write([]byte(": keepalive\n\n")) }
 			}

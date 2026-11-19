@@ -259,6 +259,51 @@ func local_request_SandboxService_DeleteSandbox_0(ctx context.Context, marshaler
 	return msg, metadata, err
 }
 
+func request_SandboxService_ForkSandbox_0(ctx context.Context, marshaler runtime.Marshaler, client SandboxServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq ForkSandboxRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	val, ok := pathParams["sandbox"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "sandbox")
+	}
+	protoReq.Sandbox, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "sandbox", err)
+	}
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	msg, err := client.ForkSandbox(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_SandboxService_ForkSandbox_0(ctx context.Context, marshaler runtime.Marshaler, server SandboxServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq ForkSandboxRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	val, ok := pathParams["sandbox"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "sandbox")
+	}
+	protoReq.Sandbox, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "sandbox", err)
+	}
+	msg, err := server.ForkSandbox(ctx, &protoReq)
+	return msg, metadata, err
+}
+
 func request_SandboxService_Exec_0(ctx context.Context, marshaler runtime.Marshaler, client SandboxServiceClient, req *http.Request, pathParams map[string]string) (SandboxService_ExecClient, runtime.ServerMetadata, error) {
 	var metadata runtime.ServerMetadata
 	stream, err := client.Exec(ctx)
@@ -441,6 +486,132 @@ func request_SandboxService_Watch_0(ctx context.Context, marshaler runtime.Marsh
 	return stream, metadata, nil
 }
 
+func request_SnapshotService_CreateSnapshot_0(ctx context.Context, marshaler runtime.Marshaler, client SnapshotServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq CreateSnapshotRequest
+		metadata runtime.ServerMetadata
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	msg, err := client.CreateSnapshot(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_SnapshotService_CreateSnapshot_0(ctx context.Context, marshaler runtime.Marshaler, server SnapshotServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq CreateSnapshotRequest
+		metadata runtime.ServerMetadata
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	msg, err := server.CreateSnapshot(ctx, &protoReq)
+	return msg, metadata, err
+}
+
+func request_SnapshotService_GetSnapshot_0(ctx context.Context, marshaler runtime.Marshaler, client SnapshotServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetSnapshotRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	val, ok := pathParams["snapshot"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "snapshot")
+	}
+	protoReq.Snapshot, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "snapshot", err)
+	}
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	msg, err := client.GetSnapshot(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_SnapshotService_GetSnapshot_0(ctx context.Context, marshaler runtime.Marshaler, server SnapshotServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetSnapshotRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	val, ok := pathParams["snapshot"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "snapshot")
+	}
+	protoReq.Snapshot, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "snapshot", err)
+	}
+	msg, err := server.GetSnapshot(ctx, &protoReq)
+	return msg, metadata, err
+}
+
+func request_SnapshotService_ListSnapshots_0(ctx context.Context, marshaler runtime.Marshaler, client SnapshotServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq ListSnapshotsRequest
+		metadata runtime.ServerMetadata
+	)
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	msg, err := client.ListSnapshots(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_SnapshotService_ListSnapshots_0(ctx context.Context, marshaler runtime.Marshaler, server SnapshotServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq ListSnapshotsRequest
+		metadata runtime.ServerMetadata
+	)
+	msg, err := server.ListSnapshots(ctx, &protoReq)
+	return msg, metadata, err
+}
+
+func request_SnapshotService_DeleteSnapshot_0(ctx context.Context, marshaler runtime.Marshaler, client SnapshotServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq DeleteSnapshotRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	val, ok := pathParams["snapshot"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "snapshot")
+	}
+	protoReq.Snapshot, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "snapshot", err)
+	}
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	msg, err := client.DeleteSnapshot(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_SnapshotService_DeleteSnapshot_0(ctx context.Context, marshaler runtime.Marshaler, server SnapshotServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq DeleteSnapshotRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	val, ok := pathParams["snapshot"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "snapshot")
+	}
+	protoReq.Snapshot, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "snapshot", err)
+	}
+	msg, err := server.DeleteSnapshot(ctx, &protoReq)
+	return msg, metadata, err
+}
+
 func request_NodeService_GetNode_0(ctx context.Context, marshaler runtime.Marshaler, client NodeServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var (
 		protoReq GetNodeRequest
@@ -609,6 +780,26 @@ func RegisterSandboxServiceHandlerServer(ctx context.Context, mux *runtime.Serve
 		}
 		forward_SandboxService_DeleteSandbox_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodPost, pattern_SandboxService_ForkSandbox_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/tidelet.v1alpha1.SandboxService/ForkSandbox", runtime.WithHTTPPathPattern("/v1alpha1/sandboxes/{sandbox}:fork"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_SandboxService_ForkSandbox_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_SandboxService_ForkSandbox_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 
 	mux.Handle(http.MethodPost, pattern_SandboxService_Exec_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		err := status.Error(codes.Unimplemented, "streaming calls are not yet supported in the in-process transport")
@@ -656,6 +847,96 @@ func RegisterSandboxServiceHandlerServer(ctx context.Context, mux *runtime.Serve
 		_, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 		return
+	})
+
+	return nil
+}
+
+// RegisterSnapshotServiceHandlerServer registers the http handlers for service SnapshotService to "mux".
+// UnaryRPC     :call SnapshotServiceServer directly.
+// StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
+// Note that using this registration option will cause many gRPC library features to stop working. Consider using RegisterSnapshotServiceHandlerFromEndpoint instead.
+// GRPC interceptors will not work for this type of registration. To use interceptors, you must use the "runtime.WithMiddlewares" option in the "runtime.NewServeMux" call.
+func RegisterSnapshotServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux, server SnapshotServiceServer) error {
+	mux.Handle(http.MethodPost, pattern_SnapshotService_CreateSnapshot_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/tidelet.v1alpha1.SnapshotService/CreateSnapshot", runtime.WithHTTPPathPattern("/v1alpha1/snapshots"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_SnapshotService_CreateSnapshot_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_SnapshotService_CreateSnapshot_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodGet, pattern_SnapshotService_GetSnapshot_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/tidelet.v1alpha1.SnapshotService/GetSnapshot", runtime.WithHTTPPathPattern("/v1alpha1/snapshots/{snapshot}"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_SnapshotService_GetSnapshot_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_SnapshotService_GetSnapshot_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodGet, pattern_SnapshotService_ListSnapshots_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/tidelet.v1alpha1.SnapshotService/ListSnapshots", runtime.WithHTTPPathPattern("/v1alpha1/snapshots"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_SnapshotService_ListSnapshots_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_SnapshotService_ListSnapshots_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodDelete, pattern_SnapshotService_DeleteSnapshot_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/tidelet.v1alpha1.SnapshotService/DeleteSnapshot", runtime.WithHTTPPathPattern("/v1alpha1/snapshots/{snapshot}"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_SnapshotService_DeleteSnapshot_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_SnapshotService_DeleteSnapshot_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
 
 	return nil
@@ -849,6 +1130,23 @@ func RegisterSandboxServiceHandlerClient(ctx context.Context, mux *runtime.Serve
 		}
 		forward_SandboxService_DeleteSandbox_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodPost, pattern_SandboxService_ForkSandbox_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/tidelet.v1alpha1.SandboxService/ForkSandbox", runtime.WithHTTPPathPattern("/v1alpha1/sandboxes/{sandbox}:fork"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_SandboxService_ForkSandbox_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_SandboxService_ForkSandbox_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	mux.Handle(http.MethodPost, pattern_SandboxService_Exec_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -944,6 +1242,7 @@ var (
 	pattern_SandboxService_ListSandboxes_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1alpha1", "sandboxes"}, ""))
 	pattern_SandboxService_StopSandbox_0   = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v1alpha1", "sandboxes", "sandbox"}, "stop"))
 	pattern_SandboxService_DeleteSandbox_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v1alpha1", "sandboxes", "sandbox"}, ""))
+	pattern_SandboxService_ForkSandbox_0   = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v1alpha1", "sandboxes", "sandbox"}, "fork"))
 	pattern_SandboxService_Exec_0          = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"tidelet.v1alpha1.SandboxService", "Exec"}, ""))
 	pattern_SandboxService_Attach_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"tidelet.v1alpha1.SandboxService", "Attach"}, ""))
 	pattern_SandboxService_Logs_0          = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3}, []string{"v1alpha1", "sandboxes", "sandbox", "logs"}, ""))
@@ -958,11 +1257,133 @@ var (
 	forward_SandboxService_ListSandboxes_0 = runtime.ForwardResponseMessage
 	forward_SandboxService_StopSandbox_0   = runtime.ForwardResponseMessage
 	forward_SandboxService_DeleteSandbox_0 = runtime.ForwardResponseMessage
+	forward_SandboxService_ForkSandbox_0   = runtime.ForwardResponseMessage
 	forward_SandboxService_Exec_0          = runtime.ForwardResponseStream
 	forward_SandboxService_Attach_0        = runtime.ForwardResponseStream
 	forward_SandboxService_Logs_0          = runtime.ForwardResponseStream
 	forward_SandboxService_GetStats_0      = runtime.ForwardResponseMessage
 	forward_SandboxService_Watch_0         = runtime.ForwardResponseStream
+)
+
+// RegisterSnapshotServiceHandlerFromEndpoint is same as RegisterSnapshotServiceHandler but
+// automatically dials to "endpoint" and closes the connection when "ctx" gets done.
+func RegisterSnapshotServiceHandlerFromEndpoint(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) (err error) {
+	conn, err := grpc.NewClient(endpoint, opts...)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			if cerr := conn.Close(); cerr != nil {
+				grpclog.Errorf("Failed to close conn to %s: %v", endpoint, cerr)
+			}
+			return
+		}
+		go func() {
+			<-ctx.Done()
+			if cerr := conn.Close(); cerr != nil {
+				grpclog.Errorf("Failed to close conn to %s: %v", endpoint, cerr)
+			}
+		}()
+	}()
+	return RegisterSnapshotServiceHandler(ctx, mux, conn)
+}
+
+// RegisterSnapshotServiceHandler registers the http handlers for service SnapshotService to "mux".
+// The handlers forward requests to the grpc endpoint over "conn".
+func RegisterSnapshotServiceHandler(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
+	return RegisterSnapshotServiceHandlerClient(ctx, mux, NewSnapshotServiceClient(conn))
+}
+
+// RegisterSnapshotServiceHandlerClient registers the http handlers for service SnapshotService
+// to "mux". The handlers forward requests to the grpc endpoint over the given implementation of "SnapshotServiceClient".
+// Note: the gRPC framework executes interceptors within the gRPC handler. If the passed in "SnapshotServiceClient"
+// doesn't go through the normal gRPC flow (creating a gRPC client etc.) then it will be up to the passed in
+// "SnapshotServiceClient" to call the correct interceptors. This client ignores the HTTP middlewares.
+func RegisterSnapshotServiceHandlerClient(ctx context.Context, mux *runtime.ServeMux, client SnapshotServiceClient) error {
+	mux.Handle(http.MethodPost, pattern_SnapshotService_CreateSnapshot_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/tidelet.v1alpha1.SnapshotService/CreateSnapshot", runtime.WithHTTPPathPattern("/v1alpha1/snapshots"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_SnapshotService_CreateSnapshot_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_SnapshotService_CreateSnapshot_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodGet, pattern_SnapshotService_GetSnapshot_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/tidelet.v1alpha1.SnapshotService/GetSnapshot", runtime.WithHTTPPathPattern("/v1alpha1/snapshots/{snapshot}"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_SnapshotService_GetSnapshot_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_SnapshotService_GetSnapshot_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodGet, pattern_SnapshotService_ListSnapshots_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/tidelet.v1alpha1.SnapshotService/ListSnapshots", runtime.WithHTTPPathPattern("/v1alpha1/snapshots"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_SnapshotService_ListSnapshots_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_SnapshotService_ListSnapshots_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodDelete, pattern_SnapshotService_DeleteSnapshot_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/tidelet.v1alpha1.SnapshotService/DeleteSnapshot", runtime.WithHTTPPathPattern("/v1alpha1/snapshots/{snapshot}"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_SnapshotService_DeleteSnapshot_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_SnapshotService_DeleteSnapshot_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	return nil
+}
+
+var (
+	pattern_SnapshotService_CreateSnapshot_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1alpha1", "snapshots"}, ""))
+	pattern_SnapshotService_GetSnapshot_0    = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v1alpha1", "snapshots", "snapshot"}, ""))
+	pattern_SnapshotService_ListSnapshots_0  = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1alpha1", "snapshots"}, ""))
+	pattern_SnapshotService_DeleteSnapshot_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v1alpha1", "snapshots", "snapshot"}, ""))
+)
+
+var (
+	forward_SnapshotService_CreateSnapshot_0 = runtime.ForwardResponseMessage
+	forward_SnapshotService_GetSnapshot_0    = runtime.ForwardResponseMessage
+	forward_SnapshotService_ListSnapshots_0  = runtime.ForwardResponseMessage
+	forward_SnapshotService_DeleteSnapshot_0 = runtime.ForwardResponseMessage
 )
 
 // RegisterNodeServiceHandlerFromEndpoint is same as RegisterNodeServiceHandler but

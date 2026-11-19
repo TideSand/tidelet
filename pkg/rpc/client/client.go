@@ -23,6 +23,7 @@ import (
 type Client struct {
 	conn      *grpc.ClientConn
 	Sandboxes pb.SandboxServiceClient
+	Snapshots pb.SnapshotServiceClient
 	Node      pb.NodeServiceClient
 }
 
@@ -41,7 +42,8 @@ func New(addr string) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect to %s: %w", addr, err)
 	}
-	return &Client{conn: conn, Sandboxes: pb.NewSandboxServiceClient(conn), Node: pb.NewNodeServiceClient(conn)}, nil
+	return &Client{conn: conn, Sandboxes: pb.NewSandboxServiceClient(conn), Snapshots: pb.NewSnapshotServiceClient(conn),
+		Node: pb.NewNodeServiceClient(conn)}, nil
 }
 
 // Close closes the connection.

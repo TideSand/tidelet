@@ -33,6 +33,7 @@ const (
 	SandboxService_ListSandboxes_FullMethodName = "/tidelet.v1alpha1.SandboxService/ListSandboxes"
 	SandboxService_StopSandbox_FullMethodName   = "/tidelet.v1alpha1.SandboxService/StopSandbox"
 	SandboxService_DeleteSandbox_FullMethodName = "/tidelet.v1alpha1.SandboxService/DeleteSandbox"
+	SandboxService_ForkSandbox_FullMethodName   = "/tidelet.v1alpha1.SandboxService/ForkSandbox"
 	SandboxService_Exec_FullMethodName          = "/tidelet.v1alpha1.SandboxService/Exec"
 	SandboxService_Attach_FullMethodName        = "/tidelet.v1alpha1.SandboxService/Attach"
 	SandboxService_Logs_FullMethodName          = "/tidelet.v1alpha1.SandboxService/Logs"
@@ -63,6 +64,13 @@ type SandboxServiceClient interface {
 	// DeleteSandbox removes a sandbox. A live sandbox is rejected unless
 	// force is set.
 	DeleteSandbox(ctx context.Context, in *DeleteSandboxRequest, opts ...grpc.CallOption) (*DeleteSandboxResponse, error)
+	// ForkSandbox makes running copies of a running sandbox: same processes,
+	// memory and filesystem, each continuing from the same instant with its own
+	// identity, and sharing the sandbox's memory until it writes to it. The
+	// sandbox itself keeps running. It is CreateSnapshot followed by a
+	// CreateSandbox and StartSandbox per copy, with a snapshot that goes away
+	// with the last copy.
+	ForkSandbox(ctx context.Context, in *ForkSandboxRequest, opts ...grpc.CallOption) (*ForkSandboxResponse, error)
 	// Exec runs a command inside a running sandbox. The first message must
 	// be ExecStart. Stdin, resize and close-stdin messages may follow. The
 	// server streams stdout, stderr and finally an Exit message.
@@ -143,6 +151,16 @@ func (c *sandboxServiceClient) DeleteSandbox(ctx context.Context, in *DeleteSand
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteSandboxResponse)
 	err := c.cc.Invoke(ctx, SandboxService_DeleteSandbox_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sandboxServiceClient) ForkSandbox(ctx context.Context, in *ForkSandboxRequest, opts ...grpc.CallOption) (*ForkSandboxResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ForkSandboxResponse)
+	err := c.cc.Invoke(ctx, SandboxService_ForkSandbox_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -246,6 +264,13 @@ type SandboxServiceServer interface {
 	// DeleteSandbox removes a sandbox. A live sandbox is rejected unless
 	// force is set.
 	DeleteSandbox(context.Context, *DeleteSandboxRequest) (*DeleteSandboxResponse, error)
+	// ForkSandbox makes running copies of a running sandbox: same processes,
+	// memory and filesystem, each continuing from the same instant with its own
+	// identity, and sharing the sandbox's memory until it writes to it. The
+	// sandbox itself keeps running. It is CreateSnapshot followed by a
+	// CreateSandbox and StartSandbox per copy, with a snapshot that goes away
+	// with the last copy.
+	ForkSandbox(context.Context, *ForkSandboxRequest) (*ForkSandboxResponse, error)
 	// Exec runs a command inside a running sandbox. The first message must
 	// be ExecStart. Stdin, resize and close-stdin messages may follow. The
 	// server streams stdout, stderr and finally an Exit message.
@@ -289,6 +314,9 @@ func (UnimplementedSandboxServiceServer) StopSandbox(context.Context, *StopSandb
 }
 func (UnimplementedSandboxServiceServer) DeleteSandbox(context.Context, *DeleteSandboxRequest) (*DeleteSandboxResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteSandbox not implemented")
+}
+func (UnimplementedSandboxServiceServer) ForkSandbox(context.Context, *ForkSandboxRequest) (*ForkSandboxResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ForkSandbox not implemented")
 }
 func (UnimplementedSandboxServiceServer) Exec(grpc.BidiStreamingServer[ExecRequest, ExecResponse]) error {
 	return status.Error(codes.Unimplemented, "method Exec not implemented")
@@ -434,6 +462,24 @@ func _SandboxService_DeleteSandbox_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SandboxService_ForkSandbox_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ForkSandboxRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SandboxServiceServer).ForkSandbox(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SandboxService_ForkSandbox_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SandboxServiceServer).ForkSandbox(ctx, req.(*ForkSandboxRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SandboxService_Exec_Handler(srv interface{}, stream grpc.ServerStream) error {
 	return srv.(SandboxServiceServer).Exec(&grpc.GenericServerStream[ExecRequest, ExecResponse]{ServerStream: stream})
 }
@@ -520,6 +566,10 @@ var SandboxService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SandboxService_DeleteSandbox_Handler,
 		},
 		{
+			MethodName: "ForkSandbox",
+			Handler:    _SandboxService_ForkSandbox_Handler,
+		},
+		{
 			MethodName: "GetStats",
 			Handler:    _SandboxService_GetStats_Handler,
 		},
@@ -548,6 +598,240 @@ var SandboxService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
+	Metadata: "tidelet/v1alpha1/tidelet.proto",
+}
+
+const (
+	SnapshotService_CreateSnapshot_FullMethodName = "/tidelet.v1alpha1.SnapshotService/CreateSnapshot"
+	SnapshotService_GetSnapshot_FullMethodName    = "/tidelet.v1alpha1.SnapshotService/GetSnapshot"
+	SnapshotService_ListSnapshots_FullMethodName  = "/tidelet.v1alpha1.SnapshotService/ListSnapshots"
+	SnapshotService_DeleteSnapshot_FullMethodName = "/tidelet.v1alpha1.SnapshotService/DeleteSnapshot"
+)
+
+// SnapshotServiceClient is the client API for SnapshotService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// SnapshotService manages snapshots: running sandboxes captured at one
+// instant (processes, memory, filesystem) without being stopped. A sandbox
+// created with SandboxSpec.snapshot set starts as a copy of the snapshotted
+// sandbox. Snapshots live in memory and do not survive a reboot.
+type SnapshotServiceClient interface {
+	// CreateSnapshot snapshots a running sandbox. The sandbox is paused while
+	// it is taken and then runs on.
+	CreateSnapshot(ctx context.Context, in *CreateSnapshotRequest, opts ...grpc.CallOption) (*CreateSnapshotResponse, error)
+	GetSnapshot(ctx context.Context, in *GetSnapshotRequest, opts ...grpc.CallOption) (*GetSnapshotResponse, error)
+	ListSnapshots(ctx context.Context, in *ListSnapshotsRequest, opts ...grpc.CallOption) (*ListSnapshotsResponse, error)
+	// DeleteSnapshot removes a snapshot. It is refused while sandboxes created
+	// from the snapshot exist.
+	DeleteSnapshot(ctx context.Context, in *DeleteSnapshotRequest, opts ...grpc.CallOption) (*DeleteSnapshotResponse, error)
+}
+
+type snapshotServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewSnapshotServiceClient(cc grpc.ClientConnInterface) SnapshotServiceClient {
+	return &snapshotServiceClient{cc}
+}
+
+func (c *snapshotServiceClient) CreateSnapshot(ctx context.Context, in *CreateSnapshotRequest, opts ...grpc.CallOption) (*CreateSnapshotResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateSnapshotResponse)
+	err := c.cc.Invoke(ctx, SnapshotService_CreateSnapshot_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *snapshotServiceClient) GetSnapshot(ctx context.Context, in *GetSnapshotRequest, opts ...grpc.CallOption) (*GetSnapshotResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSnapshotResponse)
+	err := c.cc.Invoke(ctx, SnapshotService_GetSnapshot_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *snapshotServiceClient) ListSnapshots(ctx context.Context, in *ListSnapshotsRequest, opts ...grpc.CallOption) (*ListSnapshotsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSnapshotsResponse)
+	err := c.cc.Invoke(ctx, SnapshotService_ListSnapshots_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *snapshotServiceClient) DeleteSnapshot(ctx context.Context, in *DeleteSnapshotRequest, opts ...grpc.CallOption) (*DeleteSnapshotResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteSnapshotResponse)
+	err := c.cc.Invoke(ctx, SnapshotService_DeleteSnapshot_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// SnapshotServiceServer is the server API for SnapshotService service.
+// All implementations must embed UnimplementedSnapshotServiceServer
+// for forward compatibility.
+//
+// SnapshotService manages snapshots: running sandboxes captured at one
+// instant (processes, memory, filesystem) without being stopped. A sandbox
+// created with SandboxSpec.snapshot set starts as a copy of the snapshotted
+// sandbox. Snapshots live in memory and do not survive a reboot.
+type SnapshotServiceServer interface {
+	// CreateSnapshot snapshots a running sandbox. The sandbox is paused while
+	// it is taken and then runs on.
+	CreateSnapshot(context.Context, *CreateSnapshotRequest) (*CreateSnapshotResponse, error)
+	GetSnapshot(context.Context, *GetSnapshotRequest) (*GetSnapshotResponse, error)
+	ListSnapshots(context.Context, *ListSnapshotsRequest) (*ListSnapshotsResponse, error)
+	// DeleteSnapshot removes a snapshot. It is refused while sandboxes created
+	// from the snapshot exist.
+	DeleteSnapshot(context.Context, *DeleteSnapshotRequest) (*DeleteSnapshotResponse, error)
+	mustEmbedUnimplementedSnapshotServiceServer()
+}
+
+// UnimplementedSnapshotServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedSnapshotServiceServer struct{}
+
+func (UnimplementedSnapshotServiceServer) CreateSnapshot(context.Context, *CreateSnapshotRequest) (*CreateSnapshotResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateSnapshot not implemented")
+}
+func (UnimplementedSnapshotServiceServer) GetSnapshot(context.Context, *GetSnapshotRequest) (*GetSnapshotResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSnapshot not implemented")
+}
+func (UnimplementedSnapshotServiceServer) ListSnapshots(context.Context, *ListSnapshotsRequest) (*ListSnapshotsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListSnapshots not implemented")
+}
+func (UnimplementedSnapshotServiceServer) DeleteSnapshot(context.Context, *DeleteSnapshotRequest) (*DeleteSnapshotResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteSnapshot not implemented")
+}
+func (UnimplementedSnapshotServiceServer) mustEmbedUnimplementedSnapshotServiceServer() {}
+func (UnimplementedSnapshotServiceServer) testEmbeddedByValue()                         {}
+
+// UnsafeSnapshotServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to SnapshotServiceServer will
+// result in compilation errors.
+type UnsafeSnapshotServiceServer interface {
+	mustEmbedUnimplementedSnapshotServiceServer()
+}
+
+func RegisterSnapshotServiceServer(s grpc.ServiceRegistrar, srv SnapshotServiceServer) {
+	// If the following call panics, it indicates UnimplementedSnapshotServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&SnapshotService_ServiceDesc, srv)
+}
+
+func _SnapshotService_CreateSnapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateSnapshotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SnapshotServiceServer).CreateSnapshot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SnapshotService_CreateSnapshot_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SnapshotServiceServer).CreateSnapshot(ctx, req.(*CreateSnapshotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SnapshotService_GetSnapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSnapshotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SnapshotServiceServer).GetSnapshot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SnapshotService_GetSnapshot_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SnapshotServiceServer).GetSnapshot(ctx, req.(*GetSnapshotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SnapshotService_ListSnapshots_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSnapshotsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SnapshotServiceServer).ListSnapshots(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SnapshotService_ListSnapshots_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SnapshotServiceServer).ListSnapshots(ctx, req.(*ListSnapshotsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SnapshotService_DeleteSnapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteSnapshotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SnapshotServiceServer).DeleteSnapshot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SnapshotService_DeleteSnapshot_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SnapshotServiceServer).DeleteSnapshot(ctx, req.(*DeleteSnapshotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// SnapshotService_ServiceDesc is the grpc.ServiceDesc for SnapshotService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var SnapshotService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "tidelet.v1alpha1.SnapshotService",
+	HandlerType: (*SnapshotServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateSnapshot",
+			Handler:    _SnapshotService_CreateSnapshot_Handler,
+		},
+		{
+			MethodName: "GetSnapshot",
+			Handler:    _SnapshotService_GetSnapshot_Handler,
+		},
+		{
+			MethodName: "ListSnapshots",
+			Handler:    _SnapshotService_ListSnapshots_Handler,
+		},
+		{
+			MethodName: "DeleteSnapshot",
+			Handler:    _SnapshotService_DeleteSnapshot_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "tidelet/v1alpha1/tidelet.proto",
 }
 

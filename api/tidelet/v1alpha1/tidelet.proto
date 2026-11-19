@@ -51,6 +51,18 @@ service SandboxService {
   rpc DeleteSandbox(DeleteSandboxRequest) returns (DeleteSandboxResponse) {
     option (google.api.http) = {delete: "/v1alpha1/sandboxes/{sandbox}"};
   }
+  // ForkSandbox makes running copies of a running sandbox: same processes,
+  // memory and filesystem, each continuing from the same instant with its own
+  // identity, and sharing the sandbox's memory until it writes to it. The
+  // sandbox itself keeps running. It is CreateSnapshot followed by a
+  // CreateSandbox and StartSandbox per copy, with a snapshot that goes away
+  // with the last copy.
+  rpc ForkSandbox(ForkSandboxRequest) returns (ForkSandboxResponse) {
+    option (google.api.http) = {
+      post: "/v1alpha1/sandboxes/{sandbox}:fork"
+      body: "*"
+    };
+  }
   // Exec runs a command inside a running sandbox. The first message must
   // be ExecStart. Stdin, resize and close-stdin messages may follow. The
   // server streams stdout, stderr and finally an Exit message.
@@ -72,6 +84,32 @@ service SandboxService {
   // Watch streams sandbox lifecycle events.
   rpc Watch(WatchRequest) returns (stream WatchResponse) {
     option (google.api.http) = {get: "/v1alpha1/events"};
+  }
+}
+
+// SnapshotService manages snapshots: running sandboxes captured at one
+// instant (processes, memory, filesystem) without being stopped. A sandbox
+// created with SandboxSpec.snapshot set starts as a copy of the snapshotted
+// sandbox. Snapshots live in memory and do not survive a reboot.
+service SnapshotService {
+  // CreateSnapshot snapshots a running sandbox. The sandbox is paused while
+  // it is taken and then runs on.
+  rpc CreateSnapshot(CreateSnapshotRequest) returns (CreateSnapshotResponse) {
+    option (google.api.http) = {
+      post: "/v1alpha1/snapshots"
+      body: "*"
+    };
+  }
+  rpc GetSnapshot(GetSnapshotRequest) returns (GetSnapshotResponse) {
+    option (google.api.http) = {get: "/v1alpha1/snapshots/{snapshot}"};
+  }
+  rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse) {
+    option (google.api.http) = {get: "/v1alpha1/snapshots"};
+  }
+  // DeleteSnapshot removes a snapshot. It is refused while sandboxes created
+  // from the snapshot exist.
+  rpc DeleteSnapshot(DeleteSnapshotRequest) returns (DeleteSnapshotResponse) {
+    option (google.api.http) = {delete: "/v1alpha1/snapshots/{snapshot}"};
   }
 }
 
@@ -154,6 +192,12 @@ message SandboxSpec {
   string network_namespace = 14;
   // Hostname inside the sandbox. Defaults to the sandbox name or ID.
   string hostname = 15;
+  // Snapshot ID, name, or unique ID prefix. When set, the sandbox is created
+  // as a copy of the snapshotted sandbox instead of running an image's
+  // command: its processes continue from the snapshot. Only resources,
+  // labels, priority and hostname may be given with it; everything else is
+  // the snapshot's.
+  string snapshot = 16;
 }
 
 // NetworkStatus describes a sandbox's network attachment.
@@ -253,6 +297,71 @@ message DeleteSandboxRequest {
 }
 
 message DeleteSandboxResponse {}
+
+message ForkSandboxRequest {
+  string sandbox = 1;
+  // How many copies to make. Defaults to the number of names, or 1.
+  int32 count = 2;
+  // Optional names for the copies, in order.
+  repeated string names = 3;
+}
+
+message ForkSandboxResponse {
+  repeated Sandbox sandboxes = 1;
+}
+
+message Snapshot {
+  string id = 1;
+  string name = 2;
+  // ID and name of the sandbox the snapshot was taken of.
+  string sandbox = 3;
+  string sandbox_name = 4;
+  google.protobuf.Timestamp created_at = 5;
+  // The snapshotted sandbox's spec, with the resources it was granted.
+  SandboxSpec spec = 6;
+  // Memory every sandbox created from the snapshot shares.
+  uint64 shared_bytes = 7;
+  // Memory each sandbox created from the snapshot gets a copy of.
+  uint64 private_bytes = 8;
+  // Seconds taking the snapshot took.
+  double took_seconds = 9;
+  // Deleted with the last sandbox created from it.
+  bool ephemeral = 10;
+  // Sandboxes created from the snapshot that exist now.
+  int32 sandboxes = 11;
+}
+
+message CreateSnapshotRequest {
+  // The running sandbox to snapshot.
+  string sandbox = 1;
+  // Optional unique name.
+  string name = 2;
+}
+
+message CreateSnapshotResponse {
+  Snapshot snapshot = 1;
+}
+
+message GetSnapshotRequest {
+  // Snapshot ID, name, or unique ID prefix.
+  string snapshot = 1;
+}
+
+message GetSnapshotResponse {
+  Snapshot snapshot = 1;
+}
+
+message ListSnapshotsRequest {}
+
+message ListSnapshotsResponse {
+  repeated Snapshot snapshots = 1;
+}
+
+message DeleteSnapshotRequest {
+  string snapshot = 1;
+}
+
+message DeleteSnapshotResponse {}
 
 message TerminalSize {
   uint32 width = 1;

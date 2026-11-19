@@ -78,6 +78,10 @@ type Spec struct {
 	NetworkNamespace string `json:"networkNamespace,omitempty"`
 	// Hostname inside the sandbox. Defaults to the name or ID.
 	Hostname string `json:"hostname,omitempty"`
+	// Snapshot, when set, is the ID of the snapshot the sandbox is created from: it
+	// starts as a copy of the snapshotted sandbox (same processes, memory and
+	// filesystem) instead of running the image's command.
+	Snapshot string `json:"snapshot,omitempty"`
 }
 
 // Hostname returns the effective hostname of the sandbox.
@@ -142,6 +146,33 @@ type Sandbox struct {
 	CreatedAt time.Time `json:"createdAt"`
 	Spec      Spec      `json:"spec"`
 	Status    Status    `json:"status"`
+}
+
+// Snapshot is a running sandbox at one instant: its processes, memory and filesystem.
+// Sandboxes created from it (Spec.Snapshot) start as copies of the sandbox at that
+// instant and share the snapshot's memory until they write to it.
+type Snapshot struct {
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+	// Sandbox is the ID of the sandbox the snapshot was taken of, SandboxName its name.
+	Sandbox     string    `json:"sandbox"`
+	SandboxName string    `json:"sandboxName,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
+	// Spec is the snapshotted sandbox's spec, with the resources it was granted: what a
+	// sandbox created from the snapshot runs with unless its request says otherwise.
+	Spec Spec `json:"spec"`
+	// SharedBytes is the memory every sandbox created from the snapshot shares;
+	// PrivateBytes the memory each one gets a copy of when it is created.
+	SharedBytes  uint64 `json:"sharedBytes"`
+	PrivateBytes uint64 `json:"privateBytes"`
+	// Rebased: the shared memory was written for this snapshot, not inherited.
+	Rebased bool `json:"rebased,omitempty"`
+	// Took is how long taking the snapshot took; the sandbox was paused for most of it.
+	Took time.Duration `json:"took"`
+	// Ephemeral snapshots are deleted with the last sandbox created from them.
+	Ephemeral bool `json:"ephemeral,omitempty"`
+	// Sandboxes is how many sandboxes created from the snapshot exist.
+	Sandboxes int `json:"-"`
 }
 
 // Stats is a point-in-time resource usage sample for one sandbox.

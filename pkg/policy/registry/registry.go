@@ -22,7 +22,7 @@ var registry = map[string]Constructor{
 	strict.Name: func(opts map[string]string) (policy.Policy, error) { return strict.New(opts) },
 	// Threshold overcommit: admit while measured CPU and memory are under a threshold.
 	overcommit.Name: func(opts map[string]string) (policy.Policy, error) { return overcommit.New(opts) },
-	// The AgentCgroup baseline (arXiv 2602.09345).
+	// AgentCgroup (arXiv 2602.09345).
 	agentcgroup.Name: func(opts map[string]string) (policy.Policy, error) { return agentcgroup.New(opts) },
 	// TideSand.
 	tidesand.Name: func(opts map[string]string) (policy.Policy, error) { return tidesand.New(opts) },

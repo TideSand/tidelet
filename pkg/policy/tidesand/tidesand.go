@@ -1,7 +1,6 @@
 // Package tidesand implements the "tidesand" policy, TideSand: a ceiling on
-// the pool's measured resources (agent-aware scheduling), with the two
-// contingencies the paper describes, speculative swapping and selective
-// rollback, kept rare.
+// the pool's measured resources (agent-aware scheduling), with two
+// contingencies, speculative swapping and selective rollback, kept rare.
 //
 // Agent-aware scheduling (the rule). The pool's CPU has a
 // ceiling of target x cores on what is measured in use plus what the
@@ -281,15 +280,14 @@ type parkRecord struct {
 	bytes float64
 }
 
-// New builds a tidesand policy; the defaults are the configuration of the
-// paper's evaluation. Options: target (0..2, default 0.7),
+// New builds a tidesand policy. Options: target (0..2, default 0.7),
 // floor (cores, default 0), memTarget (0..1, default 0.8), maxPass
 // (duration, default 30s), boot (cores, default 1), settle (duration,
 // default 15s), standing and sustain (durations, default 10s), memPrior
 // (bytes, default 256Mi), heavyFull (bool, default true), idleQuota (cores,
 // default 0.5; 0 never throttles), idleAfter (duration, default 30s),
-// bandwidth (bytes/s, default 250G: the sustainable DRAM traffic of the
-// evaluation host, a 64-core Graviton3; 0 leaves
+// bandwidth (bytes/s, default 250G: the sustainable DRAM traffic of a
+// 64-core Graviton3, set it to your host's; 0 leaves
 // traffic ungated), bwTarget (0..1, default 0.8), smooth (duration, default
 // 3s), bwPrior (bytes/s, default 2G), park (0..1, default 0.9; 0 never
 // parks), parkFraction (0..1, default 0.8), parkRate (bytes/s, default 32Mi;

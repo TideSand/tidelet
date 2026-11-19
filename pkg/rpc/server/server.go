@@ -46,6 +46,7 @@ type Server struct {
 	mgr      *manager.Manager
 	log      *slog.Logger
 	sb       *sandboxServer
+	sn       *snapshotServer
 	nd       *nodeServer
 	registry *prometheus.Registry
 }
@@ -62,6 +63,7 @@ func New(mgr *manager.Manager, logger *slog.Logger) *Server {
 		mgr:      mgr,
 		log:      logger,
 		sb:       &sandboxServer{mgr: mgr, log: logger},
+		sn:       &snapshotServer{mgr: mgr},
 		nd:       &nodeServer{mgr: mgr},
 		registry: reg,
 	}
@@ -70,6 +72,7 @@ func New(mgr *manager.Manager, logger *slog.Logger) *Server {
 // Register adds the services to a gRPC server.
 func (s *Server) Register(g *grpc.Server) {
 	pb.RegisterSandboxServiceServer(g, s.sb)
+	pb.RegisterSnapshotServiceServer(g, s.sn)
 	pb.RegisterNodeServiceServer(g, s.nd)
 }
 
@@ -81,6 +84,9 @@ func (s *Server) GatewayHandler(ctx context.Context, grpcAddr string) (http.Hand
 	target := grpcTarget(grpcAddr)
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 	if err := pb.RegisterSandboxServiceHandlerFromEndpoint(ctx, mux, target, opts); err != nil {
+		return nil, err
+	}
+	if err := pb.RegisterSnapshotServiceHandlerFromEndpoint(ctx, mux, target, opts); err != nil {
 		return nil, err
 	}
 	if err := pb.RegisterNodeServiceHandlerFromEndpoint(ctx, mux, target, opts); err != nil {
@@ -242,6 +248,68 @@ func (s *sandboxServer) CreateSandbox(ctx context.Context, req *pb.CreateSandbox
 		return nil, toStatus(err)
 	}
 	return &pb.CreateSandboxResponse{Sandbox: toSandbox(*sb)}, nil
+}
+
+// maxForkCopies bounds one ForkSandbox call.
+const maxForkCopies = 1024
+
+func (s *sandboxServer) ForkSandbox(ctx context.Context, req *pb.ForkSandboxRequest) (*pb.ForkSandboxResponse, error) {
+	names := append([]string(nil), req.GetNames()...)
+	n := int(req.GetCount())
+	if n == 0 {
+		n = max(len(names), 1)
+	}
+	if n < len(names) || n > maxForkCopies {
+		return nil, status.Errorf(codes.InvalidArgument, "count must be between the number of names and %d", maxForkCopies)
+	}
+	for len(names) < n {
+		names = append(names, "")
+	}
+	sbs, err := s.mgr.Fork(ctx, req.GetSandbox(), names)
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	out := &pb.ForkSandboxResponse{}
+	for _, sb := range sbs {
+		out.Sandboxes = append(out.Sandboxes, toSandbox(*sb))
+	}
+	return out, nil
+}
+
+type snapshotServer struct {
+	pb.UnimplementedSnapshotServiceServer
+	mgr *manager.Manager
+}
+
+func (s *snapshotServer) CreateSnapshot(ctx context.Context, req *pb.CreateSnapshotRequest) (*pb.CreateSnapshotResponse, error) {
+	snap, err := s.mgr.CreateSnapshot(ctx, req.GetSandbox(), req.GetName(), false)
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CreateSnapshotResponse{Snapshot: toSnapshot(*snap)}, nil
+}
+
+func (s *snapshotServer) GetSnapshot(_ context.Context, req *pb.GetSnapshotRequest) (*pb.GetSnapshotResponse, error) {
+	snap, err := s.mgr.GetSnapshot(req.GetSnapshot())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.GetSnapshotResponse{Snapshot: toSnapshot(*snap)}, nil
+}
+
+func (s *snapshotServer) ListSnapshots(context.Context, *pb.ListSnapshotsRequest) (*pb.ListSnapshotsResponse, error) {
+	out := &pb.ListSnapshotsResponse{}
+	for _, snap := range s.mgr.ListSnapshots() {
+		out.Snapshots = append(out.Snapshots, toSnapshot(snap))
+	}
+	return out, nil
+}
+
+func (s *snapshotServer) DeleteSnapshot(ctx context.Context, req *pb.DeleteSnapshotRequest) (*pb.DeleteSnapshotResponse, error) {
+	if err := s.mgr.DeleteSnapshot(ctx, req.GetSnapshot()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.DeleteSnapshotResponse{}, nil
 }
 
 func (s *sandboxServer) StartSandbox(ctx context.Context, req *pb.StartSandboxRequest) (*pb.StartSandboxResponse, error) {
