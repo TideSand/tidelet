@@ -34,6 +34,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -305,7 +306,7 @@ func ctlEntries(dir string) []ctlEntry {
 	var out []ctlEntry
 	for _, e := range entries {
 		switch filepath.Ext(e.Name()) {
-		case ".out", ".err":
+		case ".out", ".err", ".done":
 			out = append(out, ctlEntry{Name: e.Name(), FIFO: true})
 		case ".in":
 			out = append(out, ctlEntry{Name: e.Name()})
@@ -475,6 +476,9 @@ func prepareCtl(from, dir string, entries []ctlEntry) error {
 	}
 	_ = os.Chmod(dir, 0o777)
 	_ = os.Chmod(filepath.Join(dir, "req"), 0o777)
+	if err := makeWakePipe(dir); err != nil {
+		return err
+	}
 	for _, e := range entries {
 		p := filepath.Join(dir, e.Name)
 		if e.FIFO {
@@ -506,8 +510,10 @@ func (r *Runtime) started(ctx context.Context, id string, t *taskIO, meta *snaps
 	dir := r.ctlDir(id)
 	_ = os.WriteFile(filepath.Join(dir, "id"), []byte(id+"\n"), 0o644)
 	stdout, stderr := &hubWriter{h: t.hub, stream: crilog.Stdout}, &hubWriter{h: t.hub, stream: crilog.Stderr}
+	execs := map[string]*inherited{}
 	for _, e := range meta.Ctl {
-		if !e.FIFO {
+		ext := filepath.Ext(e.Name)
+		if !e.FIFO || (ext != ".out" && ext != ".err") {
 			continue
 		}
 		f, err := os.OpenFile(filepath.Join(dir, e.Name), os.O_RDWR, 0)
@@ -515,36 +521,51 @@ func (r *Runtime) started(ctx context.Context, id string, t *taskIO, meta *snaps
 			continue
 		}
 		w := stdout
-		if strings.HasSuffix(e.Name, ".err") {
+		if ext == ".err" {
 			w = stderr
 		}
-		go inheritedOutput(dir, e.Name, f, w)
+		eid := strings.TrimSuffix(e.Name, ext)
+		x := execs[eid]
+		if x == nil {
+			x = &inherited{}
+			execs[eid] = x
+		}
+		x.files = append(x.files, f)
+		x.copies.Add(1)
+		go func() { defer x.copies.Done(); copyPipe(f, w) }()
+	}
+	for eid, x := range execs {
+		go x.wait(dir, eid)
 	}
 }
 
-// inheritedOutput copies what an exec inherited from the snapshotted sandbox writes to the
-// new sandbox's log, until the exec ends (init writes its status) or the sandbox goes.
-func inheritedOutput(dir, name string, f *os.File, w *hubWriter) {
-	defer f.Close()
-	eid := strings.TrimSuffix(name, filepath.Ext(name))
-	buf := make([]byte, 32<<10)
-	for {
-		_ = f.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-		n, err := f.Read(buf)
-		if n > 0 {
-			_, _ = w.Write(buf[:n])
-			continue
+// inherited is an exec a sandbox took over from the snapshotted one: its output pipes,
+// copied to the sandbox's log.
+type inherited struct {
+	files  []*os.File
+	copies sync.WaitGroup
+}
+
+// wait waits for the exec to end (init pokes its done pipe, as does deleting the sandbox),
+// then ends the copies of its output.
+func (x *inherited) wait(dir, eid string) {
+	if done, err := openPipe(filepath.Join(dir, eid+".done")); err == nil {
+		ended := poked(done)
+		// An exec that ended before the pipe was open left its status and poked nobody.
+		if _, err := os.Stat(filepath.Join(dir, eid+".status")); err != nil {
+			<-ended
 		}
-		if err != nil && !errors.Is(err, os.ErrDeadlineExceeded) {
-			return
-		}
-		if _, serr := os.Stat(filepath.Join(dir, eid+".status")); serr == nil {
-			_ = os.Remove(filepath.Join(dir, name))
-			return
-		}
-		if _, derr := os.Stat(dir); derr != nil {
-			return
-		}
+		done.Close()
+	}
+	for _, f := range x.files {
+		endPipe(f)
+	}
+	x.copies.Wait()
+	for _, f := range x.files {
+		f.Close()
+	}
+	for _, ext := range []string{".out", ".err", ".done", ".status"} {
+		_ = os.Remove(filepath.Join(dir, eid+ext))
 	}
 }
 
