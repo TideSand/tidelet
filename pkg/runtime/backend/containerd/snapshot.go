@@ -243,6 +243,9 @@ func (r *Runtime) Snapshot(ctx context.Context, id, snapID string) (info runtime
 	_, err = copyRsync(ctx, upper, layerDir, nil)
 	if err == nil {
 		meta.Ctl = ctlEntries(r.ctlDir(id))
+		err = saveStdin(r.ctlDir(id), filepath.Join(imgDir, stdinDir), meta.Ctl)
+	}
+	if err == nil {
 		if _, err = t.task.Checkpoint(ctx, client.WithCheckpointImagePath(imgDir), withOpenTCP); err != nil {
 			err = fmt.Errorf("criu dump: %w", err)
 		}
@@ -296,8 +299,31 @@ func (r *Runtime) Snapshot(ctx context.Context, id, snapID string) (info runtime
 	return info, nil
 }
 
-// ctlEntries lists what the execs running in a sandbox hold open in its control
-// directory: their stdin files and their output pipes.
+// stdinDir is where a snapshot keeps the stdin its sandbox's execs had not finished reading.
+const stdinDir = "stdin"
+
+// saveStdin copies the stdin parts among entries from a control directory to dir.
+func saveStdin(from, dir string, entries []ctlEntry) error {
+	for _, e := range entries {
+		if e.FIFO {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(from, e.Name))
+		if err != nil {
+			continue // its exec ended meanwhile
+		}
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(dir, e.Name), data, 0o600); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ctlEntries lists what the execs running in a sandbox have in its control directory: their
+// stdin parts and their output pipes.
 func ctlEntries(dir string) []ctlEntry {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -305,10 +331,10 @@ func ctlEntries(dir string) []ctlEntry {
 	}
 	var out []ctlEntry
 	for _, e := range entries {
-		switch filepath.Ext(e.Name()) {
-		case ".out", ".err", ".done":
+		switch ext := filepath.Ext(e.Name()); {
+		case ext == ".out" || ext == ".err" || ext == ".done":
 			out = append(out, ctlEntry{Name: e.Name(), FIFO: true})
-		case ".in":
+		case strings.Contains(e.Name(), stdinExt+"."):
 			out = append(out, ctlEntry{Name: e.Name()})
 		}
 	}
@@ -341,7 +367,7 @@ func (r *Runtime) createFromSnapshot(ctx context.Context, sb *sandbox.Sandbox, c
 
 	// What belongs to the new sandbox: its control directory, cgroup, hostname and network.
 	ctl := r.ctlDir(id)
-	if err := prepareCtl(r.ctlDir(meta.Sandbox), ctl, meta.Ctl); err != nil {
+	if err := prepareCtl(filepath.Join(r.snapshotImageDir(meta.ID), stdinDir), ctl, meta.Ctl); err != nil {
 		return fmt.Errorf("control directory: %w", err)
 	}
 	defer func() {
@@ -469,7 +495,9 @@ func cloneSpec(s *specs.Spec) (*oci.Spec, error) {
 }
 
 // prepareCtl makes a new sandbox's control directory look like the snapshotted one's did
-// to the execs that were running: CRIU reopens their stdin files and output pipes by path.
+// to the execs that were running: CRIU reopens their output pipes by path, and init goes on
+// reading their stdin parts (from holds the snapshot's). Their stdin ends with those parts:
+// what the snapshotted sandbox's client sends later is not for the copy.
 func prepareCtl(from, dir string, entries []ctlEntry) error {
 	if err := os.MkdirAll(filepath.Join(dir, "req"), 0o777); err != nil {
 		return err
@@ -488,9 +516,12 @@ func prepareCtl(from, dir string, entries []ctlEntry) error {
 			_ = os.Chmod(p, 0o666)
 			continue
 		}
-		// A stdin file: the snapshotted sandbox's if it is still there, else empty.
 		data, _ := os.ReadFile(filepath.Join(from, e.Name))
 		if err := os.WriteFile(p, data, 0o644); err != nil {
+			return err
+		}
+		eid, _, _ := strings.Cut(e.Name, stdinExt+".")
+		if err := os.WriteFile(filepath.Join(dir, eid+stdinExt+".eof"), nil, 0o644); err != nil {
 			return err
 		}
 	}
@@ -509,6 +540,7 @@ func (r *Runtime) started(ctx context.Context, id string, t *taskIO, meta *snaps
 	}
 	dir := r.ctlDir(id)
 	_ = os.WriteFile(filepath.Join(dir, "id"), []byte(id+"\n"), 0o644)
+	poke(filepath.Join(dir, "wake")) // inherited execs' stdin now has its end
 	stdout, stderr := &hubWriter{h: t.hub, stream: crilog.Stdout}, &hubWriter{h: t.hub, stream: crilog.Stderr}
 	execs := map[string]*inherited{}
 	for _, e := range meta.Ctl {
@@ -567,6 +599,7 @@ func (x *inherited) wait(dir, eid string) {
 	for _, ext := range []string{".out", ".err", ".done", ".status"} {
 		_ = os.Remove(filepath.Join(dir, eid+ext))
 	}
+	removeStdin(filepath.Join(dir, eid+stdinExt))
 }
 
 // DeleteSnapshot implements runtime.Snapshotter.

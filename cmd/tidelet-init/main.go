@@ -11,10 +11,12 @@
 // tideletd talks to it through a directory bind-mounted at /.tidelet/ctl:
 //
 //	req/<id>.json   an exec request: {"args", "env", "cwd", "stdin", "stdout", "stderr"};
-//	                stdin is a regular file (or empty for /dev/null), stdout and stderr
-//	                named pipes that tideletd keeps open for reading
+//	                stdout and stderr are named pipes that tideletd keeps open for reading
+//	<id>.in.<n>     the exec's stdin (the request's "stdin" is the "<id>.in" prefix; empty for
+//	                /dev/null): parts 0, 1, ... as tideletd receives them, each written whole
+//	<id>.in.eof     the end of the exec's stdin: no part follows the ones present
 //	<id>.kill       a request to SIGKILL the exec's process group
-//	wake            a named pipe: tideletd writes a byte after leaving a request
+//	wake            a named pipe: tideletd writes a byte after leaving a request or stdin
 //	<id>.status     written by init when the exec ends: its exit code (128+signal)
 //	<id>.done       a named pipe tideletd reads: init writes a byte after the status
 //
@@ -80,7 +82,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "tidelet-init: start %v: %v\n", args, err)
 		os.Exit(127)
 	}
-	execs := map[int]string{} // pid -> exec id
+	execs := map[int]string{}       // pid -> exec id
+	stdins := map[int]*stdinRelay{} // pid -> the exec's stdin, while it has one
 	known := map[string]bool{}
 
 	for first := true; ; first = false {
@@ -90,6 +93,12 @@ func main() {
 				_ = syscall.Kill(mainPid, s.(syscall.Signal))
 			case <-children:
 			case <-wake:
+			}
+		}
+		for _, in := range stdins { // more stdin may be what the wake-up was about
+			select {
+			case in.more <- struct{}{}:
+			default:
 			}
 		}
 		// Reap every child that ended: ours, and orphans re-parented to init.
@@ -108,6 +117,10 @@ func main() {
 			}
 			if id, ok := execs[pid]; ok {
 				delete(execs, pid)
+				if in := stdins[pid]; in != nil {
+					close(in.stop)
+					delete(stdins, pid)
+				}
 				finish(id, code)
 			}
 		}
@@ -134,7 +147,7 @@ func main() {
 			}
 			known[id] = true
 			path := filepath.Join(ctl, "req", name)
-			pid, err := startRequest(path)
+			pid, in, err := startRequest(path)
 			_ = os.Remove(path)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "tidelet-init: exec %s: %v\n", id, err)
@@ -142,6 +155,9 @@ func main() {
 				continue
 			}
 			execs[pid] = id
+			if in != nil {
+				stdins[pid] = in
+			}
 		}
 	}
 }
@@ -181,36 +197,54 @@ func finish(id string, code int) {
 	}
 }
 
-func startRequest(path string) (int, error) {
+// startRequest starts the exec a request file describes, and the relay of its stdin if it
+// has one.
+func startRequest(path string) (pid int, relay *stdinRelay, err error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	var r request
 	if err := json.Unmarshal(data, &r); err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	if len(r.Args) == 0 {
-		return 0, fmt.Errorf("empty command")
+		return 0, nil, fmt.Errorf("empty command")
 	}
-	in, err := openOr(r.Stdin, os.O_RDONLY, "/dev/null")
+	var in *os.File
+	if r.Stdin == "" {
+		in, err = os.Open("/dev/null")
+	} else {
+		var p [2]int
+		if err = syscall.Pipe2(p[:], syscall.O_CLOEXEC); err == nil {
+			in = os.NewFile(uintptr(p[0]), "stdin")
+			relay = &stdinRelay{more: make(chan struct{}, 1), stop: make(chan struct{})}
+			go relay.run(r.Stdin, p[1])
+		}
+	}
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	defer in.Close()
+	defer func() {
+		if err != nil && relay != nil {
+			close(relay.stop)
+			relay = nil
+		}
+	}()
 	// The named pipes are opened read-write: an open for writing alone would block until
 	// tideletd has the reading end, and tideletd holds it already, so this is only about not
 	// blocking init. The child inherits the descriptors.
 	out, err := openOr(r.Stdout, os.O_RDWR, "/dev/null")
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	defer out.Close()
 	errf := out
 	if r.Stderr != "" && r.Stderr != r.Stdout {
 		errf, err = openOr(r.Stderr, os.O_RDWR, "/dev/null")
 		if err != nil {
-			return 0, err
+			return 0, nil, err
 		}
 		defer errf.Close()
 	}
@@ -218,7 +252,50 @@ func startRequest(path string) (int, error) {
 	if len(env) == 0 {
 		env = os.Environ()
 	}
-	return spawn(r.Args, env, r.Cwd, in, out, errf)
+	pid, err = spawn(r.Args, env, r.Cwd, in, out, errf)
+	return pid, relay, err
+}
+
+// stdinRelay passes an exec's stdin on: more is signalled when tideletd may have left another
+// part, stop is closed when the exec has ended.
+type stdinRelay struct {
+	more chan struct{}
+	stop chan struct{}
+}
+
+// run writes the stdin parts to the pipe the exec reads, in order, and closes the pipe after
+// the last one. The parts stay on disk and the position is this process's memory, so an exec
+// that is rolled back, or copied with its sandbox, gets again what it had not yet read.
+func (s *stdinRelay) run(prefix string, fd int) {
+	defer syscall.Close(fd)
+	for n := 0; ; {
+		part := prefix + "." + strconv.Itoa(n)
+		if data, err := os.ReadFile(part); err == nil {
+			for len(data) > 0 {
+				w, err := syscall.Write(fd, data)
+				if err == syscall.EINTR {
+					continue
+				}
+				if err != nil {
+					return // the exec ended, or closed its stdin
+				}
+				data = data[w:]
+			}
+			n++
+			continue
+		}
+		if _, err := os.Stat(prefix + ".eof"); err == nil {
+			if _, err := os.Stat(part); err != nil {
+				return
+			}
+			continue
+		}
+		select {
+		case <-s.stop:
+			return
+		case <-s.more:
+		}
+	}
 }
 
 func openOr(path string, flag int, fallback string) (*os.File, error) {

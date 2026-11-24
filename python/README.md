@@ -79,7 +79,8 @@ ends the daemon and leaves the sandboxes running, for the next daemon with the s
 From a process that is not root the daemon is started with `sudo -n` and opens its socket to the caller's group
 (`tideletd --socket-group`), so the client needs no root.
 
-To run the daemon as a service, use the installed `tideletd` command in a systemd unit.
+From a shell, `tidelet daemon start [tideletd flags]` runs the daemon in the background (`daemon stop`, `status`,
+`logs`, `restart`). To run it as a service, use the installed `tideletd` command in a systemd unit.
 
 ## Building
 
