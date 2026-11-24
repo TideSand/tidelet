@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/TideSand/tidelet/compare/v0.1.1...v0.2.0) (2026-11-24)
+
+
+### Features
+
+* tidelet daemon commands ([#4](https://github.com/TideSand/tidelet/issues/4)) ([90c841a](https://github.com/TideSand/tidelet/commit/90c841a4781b240accc078ecb086f34b8c4d9495))
+
 ## [0.1.1](https://github.com/TideSand/tidelet/compare/v0.1.0...v0.1.1) (2026-11-20)
 
 
