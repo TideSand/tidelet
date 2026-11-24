@@ -35,6 +35,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -176,7 +177,7 @@ type initRequest struct {
 }
 
 // execInTree runs a command as a child of the sandbox's init (see tidelet-init). Stdin is
-// copied to a file first; stdout and stderr are named pipes this side holds open for reading
+// passed on as it arrives, in numbered part files init relays; stdout and stderr are named pipes this side holds open for reading
 // and writing, so they never report end-of-file, and the exit status comes from the status
 // file init writes. While the sandbox is rolled back the exec simply waits: its process is
 // in the checkpoint and comes back with the restore.
@@ -193,22 +194,19 @@ func (r *Runtime) execInTree(ctx context.Context, id string, t *taskIO, opts run
 	}
 	dir := r.ctlDir(id)
 	eid := "x" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	var stdin *stdinParts
 	defer func() {
-		for _, s := range []string{".in", ".out", ".err", ".status", ".kill"} {
+		for _, s := range []string{".out", ".err", ".status", ".kill"} {
 			_ = os.Remove(filepath.Join(dir, eid+s))
+		}
+		if stdin != nil {
+			stdin.stop()
 		}
 	}()
 	req := initRequest{Args: opts.Command, Env: env, Cwd: cwd}
 	if opts.Stdin != nil {
-		f, err := os.OpenFile(filepath.Join(dir, eid+".in"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-		if err != nil {
-			return runtime.ExecResult{}, err
-		}
-		_, err = io.Copy(f, opts.Stdin)
-		f.Close()
-		if err != nil {
-			return runtime.ExecResult{}, fmt.Errorf("exec stdin: %w", err)
-		}
+		stdin = &stdinParts{prefix: filepath.Join(dir, eid+".in")}
+		go stdin.copy(opts.Stdin)
 		req.Stdin = ctlMount + "/" + eid + ".in"
 	}
 	var readers []*os.File
@@ -285,6 +283,60 @@ func (r *Runtime) execInTree(ctx context.Context, id string, t *taskIO, opts run
 		f.Close()
 	}
 	return runtime.ExecResult{ExitCode: int32(code)}, waitErr
+}
+
+// stdinParts writes an exec's stdin where the sandbox's init finds it: one file per read, named
+// <prefix>.0, .1, ..., each renamed into place whole, and <prefix>.eof after the last.
+type stdinParts struct {
+	prefix  string
+	mu      sync.Mutex
+	n       int
+	stopped bool
+}
+
+func (s *stdinParts) put(name string, data []byte) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stopped {
+		return false
+	}
+	tmp := s.prefix + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return false
+	}
+	return os.Rename(tmp, s.prefix+"."+name) == nil
+}
+
+// copy runs until the reader ends or the exec does. Only a clean end of the reader ends the
+// command's stdin: a client that went away leaves it open, and the exec is cancelled instead.
+func (s *stdinParts) copy(r io.Reader) {
+	buf := make([]byte, 256<<10)
+	for {
+		n, err := r.Read(buf)
+		if n > 0 {
+			if !s.put(strconv.Itoa(s.n), buf[:n]) {
+				return
+			}
+			s.n++
+		}
+		if err == io.EOF {
+			s.put("eof", nil)
+		}
+		if err != nil {
+			return
+		}
+	}
+}
+
+// stop ends the copy and removes the parts.
+func (s *stdinParts) stop() {
+	s.mu.Lock()
+	s.stopped = true
+	s.mu.Unlock()
+	names, _ := filepath.Glob(s.prefix + ".*")
+	for _, name := range names {
+		_ = os.Remove(name)
+	}
 }
 
 // withOpenTCP lets the dump take established TCP connections.
