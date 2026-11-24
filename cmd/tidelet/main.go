@@ -57,7 +57,7 @@ func main() {
 	root.PersistentFlags().StringVar(&socket, "socket", envOr("TIDELET_SOCKET", server.DefaultSocket), "tideletd socket path or tcp://host:port")
 	root.PersistentFlags().BoolVar(&jsonOut, "json", false, "output JSON")
 	root.AddCommand(runCmd(), startCmd(), lsCmd(), inspectCmd(), stopCmd(), rmCmd(), execCmd(), attachCmd(),
-		logsCmd(), statsCmd(), forkCmd(), snapshotCmd(), nodeCmd(), eventsCmd(), versionCmd())
+		logsCmd(), statsCmd(), forkCmd(), snapshotCmd(), nodeCmd(), eventsCmd(), versionCmd(), daemonCmd())
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	err := root.ExecuteContext(ctx)
